@@ -1,9 +1,0 @@
----
-description: OpenAPI must match API serializer/response JSON
-globs: "app/**/*.{py,ts}"
-alwaysApply: false
----
-
-# API Responses and OpenAPI
-
-Serializer code and response builders define the real JSON contract. When you change API response shape, update `specs/api/` (paths/schemas) and run OpenAPI validation. See rule `api-openapi` for layout and versioning (`/api/v1`).
