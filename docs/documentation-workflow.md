@@ -41,7 +41,7 @@ When documenting integrations, use MkDocs Material icon shortcodes for fast visu
 Examples:
 
 - `:simple-postgresql:` PostgreSQL
-- `:simple-amazonaws:` AWS services (Cognito, S3, KMS)
+- `:fontawesome-brands-aws:` AWS services (Cognito, S3, KMS)
 - `:simple-redis:` Redis
 - `:material-robot-outline:` AI providers
 

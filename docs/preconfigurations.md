@@ -6,12 +6,12 @@ Ianuacare now ships production-oriented adapters and a vendor-agnostic stack fac
 
 ### :material-shield-account: Auth
 
-- :simple-amazonaws: `CognitoUserRepository` (`ianuacare.infrastructure.auth`) for Cognito access tokens.
+- :fontawesome-brands-aws: `CognitoUserRepository` (`ianuacare.infrastructure.auth`) for Cognito access tokens.
 
 ### :material-database: Storage
 
 - :simple-postgresql: `PostgresDatabaseClient` (`ianuacare.infrastructure.storage`) for JSON payload persistence.
-- :simple-amazonaws: `S3BucketClient` (`ianuacare.infrastructure.storage`) for blob/object storage.
+- :fontawesome-brands-aws: `S3BucketClient` (`ianuacare.infrastructure.storage`) for blob/object storage.
 
 ### :material-robot-outline: AI provider
 
@@ -22,7 +22,7 @@ Ianuacare now ships production-oriented adapters and a vendor-agnostic stack fac
 - `CacheClient` + `InMemoryCacheClient` (`ianuacare.infrastructure.cache`)
 - :simple-redis: `RedisCacheClient` (`ianuacare.infrastructure.cache.redis`)
 - `EncryptionService` + `NoOpEncryption` (`ianuacare.infrastructure.encryption`)
-- :simple-amazonaws: `KMSEncryptionService` (`ianuacare.infrastructure.encryption.kms`)
+- :fontawesome-brands-aws: `KMSEncryptionService` (`ianuacare.infrastructure.encryption.kms`)
 
 ### :material-cog-outline: Configuration and logging
 
