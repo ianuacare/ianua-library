@@ -4,6 +4,7 @@ from ianuacare.ai import AIProvider, BaseAIModel, NLPModel
 from ianuacare.core.audit import AuditService
 from ianuacare.core.auth import (
     AuthService,
+    CognitoAccountService,
     CognitoLoginService,
     CognitoRegistrationService,
     UserRepository,
@@ -19,7 +20,14 @@ from ianuacare.core.exceptions import (
     ValidationError,
 )
 from ianuacare.core.logging import StructuredLogger
-from ianuacare.core.models import DataPacket, LoginTokens, RegistrationResult, RequestContext, User
+from ianuacare.core.models import (
+    DataPacket,
+    LoginTokens,
+    PasswordResetDelivery,
+    RegistrationResult,
+    RequestContext,
+    User,
+)
 from ianuacare.core.orchestration import DataParser, Orchestrator
 from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
 from ianuacare.infrastructure import (
@@ -46,6 +54,7 @@ __all__ = [
     "AuditService",
     "AuthService",
     "AuthenticationError",
+    "CognitoAccountService",
     "CognitoLoginService",
     "CognitoRegistrationService",
     "AuthorizationError",
@@ -82,5 +91,6 @@ __all__ = [
     "IanuacareStack",
     "create_stack",
     "LoginTokens",
+    "PasswordResetDelivery",
     "RegistrationResult",
 ]
