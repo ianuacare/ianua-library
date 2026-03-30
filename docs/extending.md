@@ -61,7 +61,15 @@ Use `create_stack()` (`ianuacare.presets`) to assemble framework services from y
 
 ## Authentication in API layers
 
+### Bearer token (already issued)
+
 Call `AuthService.authenticate()` (`ianuacare.core.auth`) on incoming tokens, then `authorize()` for the permission required by the endpoint (e.g. `pipeline:run`), then build `RequestContext` and call `Pipeline.run()`.
+
+### AWS Cognito (`USER_PASSWORD_AUTH`)
+
+Use `CognitoLoginService` to exchange username/password for `LoginTokens`, then `AuthService` with `CognitoUserRepository` on `tokens.access_token`. Keep **passwords and tokens out of logs**; map `AuthenticationError.code` (`invalid_credentials`, `cognito_challenge`, `rate_limited`, etc.) to HTTP responses in your API layer.
+
+If Cognito returns `cognito_challenge`, implement `RespondToAuthChallenge` (or hosted UI) in the application — the library stops at surfacing that code.
 
 ## Audit and compliance
 

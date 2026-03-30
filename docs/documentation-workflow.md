@@ -85,3 +85,11 @@ This repository includes a local skill in:
 - `.cursor/skills/docs-sync/SKILL.md`
 
 Use that skill whenever introducing new modules or changing existing ones; it enforces a docs update pass and a final consistency check between code and `docs/`.
+
+## Cursor workspace rule
+
+The same requirement is enforced for agents via the always-on workspace rule:
+
+- `.cursor/rules/mkdocs-documentation.mdc`
+
+Any change under `src/ianuacare/` that affects public API or documented behavior should include the corresponding `docs/` updates in the **same change set**.

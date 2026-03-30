@@ -18,6 +18,14 @@ Module path: `ianuacare.core.models`
 - `product: str`
 - `metadata: dict` — use for **non-PHI** routing keys (e.g. `model_key`).
 
+### `LoginTokens`
+
+Module path: `ianuacare.core.models.login_tokens`
+
+- `access_token: str`, `id_token: str`, `refresh_token: str`
+- `token_type: str` (default `"Bearer"`)
+- `expires_in: int | None` — seconds, when provided by the IdP
+
 ### `DataPacket`
 
 Mutable pipeline state:
@@ -46,6 +54,39 @@ Module path: `ianuacare.core.auth`
 - `authenticate(token: str) -> User` — raises `AuthenticationError`.
 - `authorize(user: User, required_permission: str) -> None` — raises `AuthorizationError`.
 - `build_context(user, *, product, metadata=...)` — builds `RequestContext`.
+
+### `CognitoLoginService`
+
+Module path: `ianuacare.core.auth.cognito_login` — also re-exported from `ianuacare`.
+
+Requires optional dependency **`pip install "ianuacare[aws]"`** (or `boto3`).
+
+- Constructor: `CognitoLoginService(region, app_client_id, *, client_secret=None)`
+  - Pass `client_secret` when the Cognito app client is **confidential** (computes `SECRET_HASH` for `USER_PASSWORD_AUTH`).
+- `login(username: str, password: str) -> LoginTokens` — calls Cognito `InitiateAuth` with `USER_PASSWORD_AUTH`.
+  - On invalid credentials: `AuthenticationError` with `code="invalid_credentials"`.
+  - On throttling: `code="rate_limited"`.
+  - If Cognito returns a **challenge** (e.g. `NEW_PASSWORD_REQUIRED`, MFA): `code="cognito_challenge"` — handle `RespondToAuthChallenge` in the application layer if needed.
+  - Other Cognito client errors: `code="cognito_error"`.
+
+Typical flow: `login()` → use `LoginTokens.access_token` with `AuthService` + `CognitoUserRepository`.
+
+## Infrastructure: Cognito (`ianuacare.infrastructure.auth`)
+
+Module path: `ianuacare.infrastructure.auth`
+
+Requires **`[aws]`** (`boto3`; token validation also needs `python-jose`).
+
+### `CognitoUserRepository`
+
+- Constructor: `CognitoUserRepository(region, user_pool_id, app_client_id)` (pool/client ids are stored for alignment with your config; `get_user` uses the access token).
+- `get_user_by_token(token: str) -> dict` — `get_user` + JWT claims for `role` / `permissions` custom attributes.
+
+### `CognitoPasswordAuthenticator`
+
+Lower-level adapter used by `CognitoLoginService`:
+
+- `initiate_user_password_auth(username, password) -> dict` — raw `initiate_auth` response; maps `ClientError` to `AuthenticationError` as above.
 
 ## Pipeline
 

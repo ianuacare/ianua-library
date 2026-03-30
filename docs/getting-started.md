@@ -12,6 +12,12 @@ From the repository root:
 pip install -e ".[dev]"
 ```
 
+### Optional: AWS (Cognito, S3, …)
+
+```bash
+pip install -e ".[dev,aws]"
+```
+
 ## Minimal example
 
 ```python
@@ -57,6 +63,32 @@ ctx = RequestContext(
 packet = pipe.run({"text": "example input"}, ctx)
 print(packet.inference_result)
 ```
+
+### Cognito: password login + token authentication
+
+With `boto3` installed (`[aws]`), you can obtain tokens and reuse `AuthService` with `CognitoUserRepository`:
+
+```python
+from ianuacare import AuthService, CognitoLoginService, CognitoUserRepository
+
+login = CognitoLoginService(
+    "eu-west-1",
+    "your-app-client-id",
+    client_secret=None,  # set if the app client has a secret
+)
+tokens = login.login("user@example.com", "password")
+
+auth = AuthService(
+    CognitoUserRepository(
+        "eu-west-1",
+        "your-user-pool-id",
+        "your-app-client-id",
+    )
+)
+user = auth.authenticate(tokens.access_token)
+```
+
+Do not log passwords or full tokens; treat `LoginTokens` as secrets in your app.
 
 ## Run tests
 
