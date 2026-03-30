@@ -111,6 +111,26 @@ if not result.user_confirmed:
 
 Pool and app client must allow sign-up; do not log confirmation codes.
 
+### Cognito: reset password, logout, change password, profile
+
+```python
+from ianuacare import CognitoAccountService, CognitoLoginService
+
+account = CognitoAccountService("eu-west-1", "your-app-client-id")
+delivery = account.request_password_reset("user@example.com")
+# show delivery.destination / delivery.delivery_medium to the user (masked)
+account.confirm_password_reset("user@example.com", "123456", "NewValidP@ss1")
+
+tokens = CognitoLoginService("eu-west-1", "your-app-client-id").login(
+    "user@example.com", "NewValidP@ss1"
+)
+account.change_password(tokens.access_token, "NewValidP@ss1", "AnotherValidP@ss2")
+account.update_profile_attributes(tokens.access_token, {"given_name": "Ada"})
+account.logout(tokens.access_token)
+```
+
+Do not log passwords, codes, or raw tokens.
+
 ## Run tests
 
 ```bash

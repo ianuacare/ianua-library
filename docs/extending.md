@@ -75,6 +75,10 @@ If Cognito returns `cognito_challenge`, implement `RespondToAuthChallenge` (or h
 
 Use `CognitoRegistrationService.register()` then `confirm()` when `UserConfirmed` is false in your pool policy. Map `ValidationError.code` for client-facing messages (e.g. `username_exists`, `invalid_password`). Admin-only flows (`AdminCreateUser`) are not wrapped here — call boto3 from your backend if you use them.
 
+### Password reset, session, and profile
+
+`CognitoAccountService` wraps `ForgotPassword`, `ConfirmForgotPassword`, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. After `logout`, drop the access token on the client; Cognito may still honor it until expiry. For email/phone updates that require verification, Cognito may return a confirmation flow — handle `GetUserAttributeVerificationToken` / `VerifyUserAttribute` in your app if needed (not wrapped in this library).
+
 ## Audit and compliance
 
 - Treat `AuditService.log_event` as **operational** metadata: user id, product, event name, correlation ids.

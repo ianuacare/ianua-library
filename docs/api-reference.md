@@ -33,6 +33,13 @@ Module path: `ianuacare.core.models.registration_result`
 - `user_sub: str` — Cognito `UserSub`.
 - `user_confirmed: bool` — `True` if no further confirmation step is required for the user pool policy.
 
+### `PasswordResetDelivery`
+
+Module path: `ianuacare.core.models.password_reset_delivery`
+
+- `destination: str` — masked destination from Cognito (`CodeDeliveryDetails`).
+- `delivery_medium: str` — e.g. `EMAIL`, `SMS`.
+
 ### `DataPacket`
 
 Mutable pipeline state:
@@ -93,6 +100,21 @@ Requires **`[aws]`** (`boto3`). The user pool must allow **self-registration** o
 
 After `user_confirmed` is true (or after `confirm()`), the user can call `CognitoLoginService.login()`.
 
+### `CognitoAccountService`
+
+Module path: `ianuacare.core.auth.cognito_account` — also re-exported from `ianuacare`.
+
+Requires **`[aws]`** (`boto3`).
+
+- Constructor: `CognitoAccountService(region, app_client_id, *, client_secret=None)`.
+- `request_password_reset(username) -> PasswordResetDelivery` — `ForgotPassword` (user receives a code).
+- `confirm_password_reset(username, confirmation_code, new_password) -> None` — `ConfirmForgotPassword`.
+- `logout(access_token) -> None` — `GlobalSignOut` (invalidates **refresh** tokens for the user; access token may still work until expiry — discard it client-side).
+- `change_password(access_token, previous_password, new_password) -> None` — `ChangePassword` for a signed-in user.
+- `update_profile_attributes(access_token, attributes: dict[str, str]) -> None` — `UpdateUserAttributes` (standard and custom attribute names as Cognito expects).
+
+Errors combine `ValidationError` and `AuthenticationError` (e.g. `invalid_token`, `invalid_credentials`, `rate_limited`, `invalid_password`, `alias_exists`, `limit_exceeded`, `password_reset_required`). See Cognito docs for pool-specific behavior.
+
 ## Infrastructure: Cognito (`ianuacare.infrastructure.auth`)
 
 Module path: `ianuacare.infrastructure.auth`
@@ -117,6 +139,12 @@ Lower-level adapter used by `CognitoRegistrationService`:
 - `sign_up(username, password, *, attributes=None) -> dict` — boto3 `sign_up` response.
 - `confirm_sign_up(username, confirmation_code) -> None` — wraps `confirm_sign_up`.
 - Maps `ClientError` to `ValidationError` / `AuthenticationError` (rate limits) as documented for `CognitoRegistrationService`.
+
+### `CognitoAccountClient`
+
+Lower-level adapter used by `CognitoAccountService`:
+
+- `forgot_password`, `confirm_forgot_password`, `global_sign_out`, `change_password`, `update_user_attributes`.
 
 ## Pipeline
 
