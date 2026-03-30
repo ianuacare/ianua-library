@@ -90,6 +90,27 @@ user = auth.authenticate(tokens.access_token)
 
 Do not log passwords or full tokens; treat `LoginTokens` as secrets in your app.
 
+### Cognito: self-registration and confirmation
+
+```python
+from ianuacare import CognitoRegistrationService
+
+reg = CognitoRegistrationService(
+    "eu-west-1",
+    "your-app-client-id",
+    client_secret=None,
+)
+result = reg.register(
+    "user@example.com",
+    "ValidP@ssw0rd1",
+    attributes={"email": "user@example.com"},
+)
+if not result.user_confirmed:
+    reg.confirm("user@example.com", code_from_email)
+```
+
+Pool and app client must allow sign-up; do not log confirmation codes.
+
 ## Run tests
 
 ```bash

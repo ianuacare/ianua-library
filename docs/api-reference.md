@@ -26,6 +26,13 @@ Module path: `ianuacare.core.models.login_tokens`
 - `token_type: str` (default `"Bearer"`)
 - `expires_in: int | None` — seconds, when provided by the IdP
 
+### `RegistrationResult`
+
+Module path: `ianuacare.core.models.registration_result`
+
+- `user_sub: str` — Cognito `UserSub`.
+- `user_confirmed: bool` — `True` if no further confirmation step is required for the user pool policy.
+
 ### `DataPacket`
 
 Mutable pipeline state:
@@ -71,6 +78,21 @@ Requires optional dependency **`pip install "ianuacare[aws]"`** (or `boto3`).
 
 Typical flow: `login()` → use `LoginTokens.access_token` with `AuthService` + `CognitoUserRepository`.
 
+### `CognitoRegistrationService`
+
+Module path: `ianuacare.core.auth.cognito_registration` — also re-exported from `ianuacare`.
+
+Requires **`[aws]`** (`boto3`). The user pool must allow **self-registration** on the app client.
+
+- Constructor: `CognitoRegistrationService(region, app_client_id, *, client_secret=None)`.
+- `register(username, password, *, attributes=None) -> RegistrationResult` — Cognito `SignUp`.
+  - `attributes`: optional `dict` of Cognito attribute names to values (e.g. `email`, `phone_number`).
+  - Failures: mostly `ValidationError` (`username_exists`, `invalid_password`, `invalid_parameter`, `user_lambda_validation`, `cognito_error`); throttling uses `AuthenticationError` with `code="rate_limited"`.
+- `confirm(username, confirmation_code) -> None` — Cognito `ConfirmSignUp` after email/SMS code.
+  - Failures: `ValidationError` (`invalid_confirmation_code`, `expired_confirmation_code`, `confirm_not_allowed`, `user_not_found`, `alias_exists`, …); rate limit as above.
+
+After `user_confirmed` is true (or after `confirm()`), the user can call `CognitoLoginService.login()`.
+
 ## Infrastructure: Cognito (`ianuacare.infrastructure.auth`)
 
 Module path: `ianuacare.infrastructure.auth`
@@ -87,6 +109,14 @@ Requires **`[aws]`** (`boto3`; token validation also needs `python-jose`).
 Lower-level adapter used by `CognitoLoginService`:
 
 - `initiate_user_password_auth(username, password) -> dict` — raw `initiate_auth` response; maps `ClientError` to `AuthenticationError` as above.
+
+### `CognitoRegistrationClient`
+
+Lower-level adapter used by `CognitoRegistrationService`:
+
+- `sign_up(username, password, *, attributes=None) -> dict` — boto3 `sign_up` response.
+- `confirm_sign_up(username, confirmation_code) -> None` — wraps `confirm_sign_up`.
+- Maps `ClientError` to `ValidationError` / `AuthenticationError` (rate limits) as documented for `CognitoRegistrationService`.
 
 ## Pipeline
 

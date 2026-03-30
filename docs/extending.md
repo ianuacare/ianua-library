@@ -71,6 +71,10 @@ Use `CognitoLoginService` to exchange username/password for `LoginTokens`, then 
 
 If Cognito returns `cognito_challenge`, implement `RespondToAuthChallenge` (or hosted UI) in the application — the library stops at surfacing that code.
 
+### Self-registration (`SignUp`)
+
+Use `CognitoRegistrationService.register()` then `confirm()` when `UserConfirmed` is false in your pool policy. Map `ValidationError.code` for client-facing messages (e.g. `username_exists`, `invalid_password`). Admin-only flows (`AdminCreateUser`) are not wrapped here — call boto3 from your backend if you use them.
+
 ## Audit and compliance
 
 - Treat `AuditService.log_event` as **operational** metadata: user id, product, event name, correlation ids.

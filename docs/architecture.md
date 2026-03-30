@@ -54,7 +54,7 @@ src/ianuacare/
 
 ## Relationships (from the class diagram)
 
-- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`. `Orchestrator` holds `DataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `NLPModel` holds `AIProvider`.
+- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`. `Orchestrator` holds `DataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `NLPModel` holds `AIProvider`.
 - **Dependency**: most services accept `DataPacket` and `RequestContext` per call (no long-lived coupling).
 - **Inheritance**: `NLPModel` extends `BaseAIModel`; concrete errors extend `IanuacareError`.
 

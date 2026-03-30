@@ -9,6 +9,8 @@ Ianuacare now ships production-oriented adapters and a vendor-agnostic stack fac
 - :fontawesome-brands-aws: `CognitoUserRepository` (`ianuacare.infrastructure.auth`) — resolves a principal from a **Cognito access token** (and JWT claim attributes).
 - :fontawesome-brands-aws: `CognitoLoginService` (`ianuacare.core.auth`, re-exported from `ianuacare`) — **password login** via `USER_PASSWORD_AUTH`, returns `LoginTokens`.
 - :fontawesome-brands-aws: `CognitoPasswordAuthenticator` (`ianuacare.infrastructure.auth`) — low-level `InitiateAuth` wrapper (used by `CognitoLoginService`).
+- :fontawesome-brands-aws: `CognitoRegistrationService` (`ianuacare.core.auth`) — self-service `SignUp` / `ConfirmSignUp`.
+- :fontawesome-brands-aws: `CognitoRegistrationClient` (`ianuacare.infrastructure.auth`) — low-level registration wrapper.
 
 All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): `boto3`, and `python-jose` for JWT claim reads in `CognitoUserRepository`.
 
