@@ -13,7 +13,7 @@ from ianuacare.core.orchestration import DataParser, Orchestrator
 from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
 from ianuacare.infrastructure.cache import CacheClient
 from ianuacare.infrastructure.encryption import EncryptionService
-from ianuacare.infrastructure.storage import BucketClient, DatabaseClient, Writer
+from ianuacare.infrastructure.storage import BucketClient, DatabaseClient, Reader, Writer
 
 
 @dataclass(slots=True)
@@ -55,6 +55,7 @@ def create_stack(
         data_manager=DataManager(),
         validator=DataValidator(),
         writer=writer,
+        reader=Reader(database),
         orchestrator=orchestrator,
         audit_service=AuditService(database),
     )
