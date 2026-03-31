@@ -1,0 +1,20 @@
+---
+description: Git workflow, Conventional Commits, branch naming, and PR rules
+alwaysApply: true
+---
+
+# Git Conventions
+
+## Commits (Conventional Commits)
+Format: `<type>(<scope>): <description>`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `security`. Scopes: `api`, `auth`, `core`, `ianua`, `infra`, `ci`, `docker`, `deps`, `docs`, `tests`. Breaking: `feat(api)!: ...`.
+
+Examples: `feat(api): add patient risk endpoint`, `fix(ianua): map library timeout errors`, `test(tests): add flask integration coverage`.
+
+## Branches
+`<type>/<issue>-<short-desc>` e.g. `feat/42-pathway-cloning`.
+
+## Pull requests
+Conventional title; body `Closes #N`; squash to `main`; CI green; 1+ reviewer for non-trivial work.
+
+## Tooling
+`.cz.toml` + Commitizen; `cz commit`; `CHANGELOG.md` on bump.

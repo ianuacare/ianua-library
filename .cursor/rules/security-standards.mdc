@@ -1,0 +1,41 @@
+---
+description: Security standards for healthcare data in Flask services
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Security Standards (Healthcare + Flask)
+
+## PII & Health Data
+- **Never** log patient names, fiscal codes, diagnoses, or any health-related data
+- **Never** expose PII in error messages or API responses beyond what's needed
+- Redact sensitive fields before structured logging
+- Encrypt sensitive data at rest and in transit; key material must stay outside repository
+
+## Authorization
+- Every protected endpoint must require auth and scope checks
+- Centralize auth/authorization decorators or middleware
+- Enforce least privilege when querying tenant/patient scoped data
+
+## Input Validation
+- Validate query/path/body payloads explicitly (schema or typed validators)
+- Reject unknown fields for sensitive operations
+- Different validation rules for create/update where fields differ
+
+## SQL Injection Prevention
+- Use parameterized queries/ORM filters only
+- Never interpolate user input into SQL strings
+
+## HTTP Security
+- Disable debug mode in production
+- Add secure headers (`HSTS`, `X-Content-Type-Options`, `X-Frame-Options`, CSP as applicable)
+- Apply CORS with explicit allowlist, never wildcard with credentials
+- Webhooks must verify signatures and enforce replay protection if supported
+
+## Dependency Security
+- Run vulnerability scan on dependencies before release
+- Track and patch vulnerable transitive dependencies quickly
+
+## Secrets
+- Secrets only from environment/secret manager
+- Never commit `.env`, API keys, service account keys, or tokens

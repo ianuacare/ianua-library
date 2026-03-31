@@ -1,0 +1,33 @@
+---
+description: Documentazione MkDocs obbligatoria quando cambia la libreria ianuacare
+alwaysApply: true
+---
+
+# Documentazione MkDocs (obbligatoria)
+
+Ogni modifica a **API pubbliche**, **comportamento**, **architettura**, **integrazioni** o **setup** della libreria in `src/ianuacare/` deve essere riflessa nella documentazione **prima** di considerare il lavoro completo.
+
+## Cosa fare sempre
+
+1. Aggiornare le pagine in `docs/` impattate (vedi checklist sotto).
+2. Allineare `mkdocs.yml` (`nav`) solo se aggiungi **nuove** pagine `.md`.
+3. Verificare con `mkdocs build` (o `mkdocs serve`) quando cambi struttura o diagrammi.
+4. Seguire la procedura dettagliata in `.cursor/skills/docs-sync/SKILL.md` e in `docs/documentation-workflow.md`.
+
+## Checklist rapida
+
+- `docs/api-reference.md` — nuovi simboli re-exportati da `ianuacare`, firme, eccezioni.
+- `docs/architecture.md` — confini tra layer, flussi, relazioni rilevanti.
+- `docs/extending.md` — punti di estensione e integrazioni (es. auth, storage).
+- `docs/getting-started.md` — installazione, extra opzionali, esempi minimi validi.
+- `docs/preconfigurations.md` — adattatori production (AWS, DB, cache, …).
+- `docs/index.md` — solo se introduci una **nuova** pagina nella tabella dei contenuti.
+
+## Eccezione
+
+Se la modifica **non** tocca nulla di documentabile (es. refactor interno senza API esposta), indica nel messaggio/PR **perché** i docs non cambiano.
+
+## Vietato
+
+- Chiudere una feature che cambia l’API senza aggiornare almeno `docs/api-reference.md` (e le altre pagine applicabili).
+- Lasciare esempi con import o path obsoleti.

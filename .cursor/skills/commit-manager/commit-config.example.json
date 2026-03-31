@@ -1,0 +1,9 @@
+{
+  "additional_heuristics": {
+    "lib/**": "feat|fix|refactor(lib)",
+    "scripts/**": "chore(scripts)"
+  },
+  "commit_order_override": null,
+  "auto_refs": true,
+  "scope_aliases": {}
+}

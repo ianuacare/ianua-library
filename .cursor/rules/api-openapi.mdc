@@ -1,0 +1,15 @@
+---
+description: OpenAPI 3.1 spec required for every API endpoint
+globs: app/**/*.py
+alwaysApply: false
+---
+
+# API OpenAPI Requirements
+
+Every Flask endpoint under `app/` that exposes HTTP APIs MUST have matching OpenAPI under `specs/api/` (`openapi.yml`, `paths/`, `schemas/`). If response schemas change, update OpenAPI in the same task.
+
+Per endpoint: method + path, summary, parameters, request body (if any), responses (200/201, 401, 422, 500), `security: [ bearerAuth: [] ]`, at least one example per response.
+
+**Versioning**: For new endpoints, prefer `/api/v1/...` and keep versioning consistent across blueprints.
+
+Validate before commit using the project's OpenAPI validator command.
