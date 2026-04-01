@@ -5,6 +5,7 @@ from ianuacare.infrastructure.storage.database import (
     DatabaseClient,
     InMemoryDatabaseClient,
 )
+from ianuacare.infrastructure.storage.reader import Reader
 from ianuacare.infrastructure.storage.writer import Writer
 
 try:  # Optional dependency: psycopg
@@ -23,6 +24,7 @@ __all__ = [
     "InMemoryBucketClient",
     "InMemoryDatabaseClient",
     "PostgresDatabaseClient",
+    "Reader",
     "S3BucketClient",
     "Writer",
 ]

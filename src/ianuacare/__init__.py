@@ -43,6 +43,7 @@ from ianuacare.infrastructure.storage import (
     InMemoryBucketClient,
     InMemoryDatabaseClient,
     PostgresDatabaseClient,
+    Reader,
     S3BucketClient,
     Writer,
 )
@@ -79,6 +80,7 @@ __all__ = [
     "Orchestrator",
     "Pipeline",
     "PostgresDatabaseClient",
+    "Reader",
     "RequestContext",
     "S3BucketClient",
     "StructuredLogger",

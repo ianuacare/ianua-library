@@ -42,6 +42,16 @@ Subclass `DataValidator` (`ianuacare.core.pipeline`) and override `_coerce_valid
 
 Implement `DatabaseClient` and `BucketClient` from `ianuacare.infrastructure.storage` with your drivers (e.g. SQLAlchemy, boto3). Keep **collection names** and key conventions consistent with your retention and backup policies.
 
+`DatabaseClient` now includes CRUD primitives used by `Reader`/`Writer`:
+
+- `create(collection, record)`
+- `read_one(collection, *, key, value)`
+- `read_many(collection, *, filters=None)`
+- `update(collection, *, key, value, updates)`
+- `delete(collection, *, key, value)`
+
+Compatibility methods `write` and `fetch_all` are still available.
+
 `Writer` uses blob keys of the form:
 
 `{product}/{user_id}/{phase}/{request_id}`
@@ -59,11 +69,13 @@ Built-in adapters include `RedisCacheClient` and `KMSEncryptionService`.
 
 Use `create_stack()` (`ianuacare.presets`) to assemble framework services from your adapters, while keeping the core vendor-agnostic.
 
+The stack now wires both `Writer` and `Reader` into `Pipeline` (`run_model` and `run_crud` flows).
+
 ## Authentication in API layers
 
 ### Bearer token (already issued)
 
-Call `AuthService.authenticate()` (`ianuacare.core.auth`) on incoming tokens, then `authorize()` for the permission required by the endpoint (e.g. `pipeline:run`), then build `RequestContext` and call `Pipeline.run()`.
+Call `AuthService.authenticate()` (`ianuacare.core.auth`) on incoming tokens, then `authorize()` for the permission required by the endpoint (e.g. `pipeline:run` or domain-specific CRUD permission), then build `RequestContext` and call `Pipeline.run_model()` or `Pipeline.run_crud()`.
 
 ### AWS Cognito (`USER_PASSWORD_AUTH`)
 

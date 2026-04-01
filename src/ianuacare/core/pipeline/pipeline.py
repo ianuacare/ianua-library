@@ -5,33 +5,41 @@ from __future__ import annotations
 from typing import Any
 
 from ianuacare.core.audit.service import AuditService
+from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
 from ianuacare.core.orchestration.orchestrator import Orchestrator
 from ianuacare.core.pipeline.data_manager import DataManager
 from ianuacare.core.pipeline.validator import DataValidator
+from ianuacare.infrastructure.storage.reader import Reader
 from ianuacare.infrastructure.storage.writer import Writer
 
 
 class Pipeline:
-    """Runs collect -> validate -> write raw -> orchestrate -> write processed -> write result."""
+    """Runs model and CRUD flows over a shared collect/validate entrypoint."""
 
     def __init__(
         self,
         data_manager: DataManager,
         validator: DataValidator,
         writer: Writer,
+        reader: Reader,
         orchestrator: Orchestrator,
         audit_service: AuditService,
     ) -> None:
         self._data_manager = data_manager
         self._validator = validator
         self._writer = writer
+        self._reader = reader
         self._orchestrator = orchestrator
         self._audit = audit_service
 
     def run(self, input_data: Any, context: RequestContext) -> DataPacket:
-        """Execute the full pipeline for ``input_data``."""
+        """Backward-compatible alias for ``run_model``."""
+        return self.run_model(input_data, context)
+
+    def run_model(self, input_data: Any, context: RequestContext) -> DataPacket:
+        """Execute the model pipeline for ``input_data``."""
         packet = self._data_manager.collect(input_data, context)
         self._audit.log_event(
             "pipeline_started",
@@ -55,3 +63,84 @@ class Pipeline:
         )
         return packet
 
+    def run_crud(
+        self,
+        operation: str,
+        input_data: Any,
+        context: RequestContext,
+    ) -> DataPacket:
+        """Execute CRUD flow with either writer (write ops) or reader (read ops)."""
+        packet = self._data_manager.collect(input_data, context)
+        self._audit.log_event(
+            "pipeline_crud_started",
+            context,
+            {"operation": operation},
+        )
+        self._validator.validate(packet)
+        payload = self._require_mapping(packet.validated_data)
+        collection = payload.get("collection")
+        if not isinstance(collection, str) or not collection:
+            raise ValidationError("collection is required for CRUD operations")
+
+        if operation == "create":
+            record = self._require_mapping(payload.get("record"), field="record")
+            packet.processed_data = self._writer.write_create(collection, record, context)
+        elif operation == "update":
+            lookup_field = self._require_text(payload.get("lookup_field"), field="lookup_field")
+            lookup_value = payload.get("lookup_value")
+            updates = self._require_mapping(payload.get("updates"), field="updates")
+            packet.processed_data = self._writer.write_update(
+                collection,
+                lookup_field=lookup_field,
+                lookup_value=lookup_value,
+                updates=updates,
+                context=context,
+            )
+        elif operation == "delete":
+            lookup_field = self._require_text(payload.get("lookup_field"), field="lookup_field")
+            lookup_value = payload.get("lookup_value")
+            packet.processed_data = self._writer.write_delete(
+                collection,
+                lookup_field=lookup_field,
+                lookup_value=lookup_value,
+                context=context,
+            )
+        elif operation == "read_one":
+            lookup_field = self._require_text(payload.get("lookup_field"), field="lookup_field")
+            lookup_value = payload.get("lookup_value")
+            packet.processed_data = self._reader.read_one(
+                collection,
+                lookup_field=lookup_field,
+                lookup_value=lookup_value,
+                context=context,
+            )
+        elif operation == "read_many":
+            filters = payload.get("filters")
+            if filters is not None and not isinstance(filters, dict):
+                raise ValidationError("filters must be a mapping when provided")
+            packet.processed_data = self._reader.read_many(
+                collection,
+                filters=filters,
+                context=context,
+            )
+        else:
+            raise ValidationError(f"Unsupported CRUD operation: {operation}")
+
+        self._audit.log_event(
+            "pipeline_crud_completed",
+            context,
+            {"operation": operation},
+        )
+        return packet
+
+    @staticmethod
+    def _require_mapping(value: Any, *, field: str = "payload") -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValidationError(f"{field} must be a mapping")
+        return value
+
+    @staticmethod
+    def _require_text(value: Any, *, field: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValidationError(f"{field} is required")
+        return value
