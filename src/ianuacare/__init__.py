@@ -1,6 +1,19 @@
 """Ianuacare: healthcare data pipeline and AI inference framework."""
 
 from ianuacare.ai import AIProvider, BaseAIModel, NLPModel
+from ianuacare.audio import (
+    DiarizationPipeline,
+    DiarizationResult,
+    PauseDetector,
+    SpeakerClusterer,
+    SpeakerEmbedder,
+    SpectralAnalyzer,
+    SummaryGenerator,
+    SummaryResult,
+    WhisperResult,
+    WhisperSegment,
+    WhisperTranscriber,
+)
 from ianuacare.core.audit import AuditService
 from ianuacare.core.auth import (
     AuthService,
@@ -53,6 +66,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AIProvider",
+    "DiarizationPipeline",
+    "DiarizationResult",
     "AuditService",
     "AuthService",
     "AuthenticationError",
@@ -76,20 +91,29 @@ __all__ = [
     "InMemoryCacheClient",
     "InMemoryDatabaseClient",
     "NLPModel",
+    "PauseDetector",
     "OrchestrationError",
     "Orchestrator",
     "Pipeline",
     "PostgresDatabaseClient",
     "Reader",
     "RequestContext",
+    "SpeakerClusterer",
+    "SpeakerEmbedder",
+    "SpectralAnalyzer",
     "S3BucketClient",
     "StructuredLogger",
     "StorageError",
+    "SummaryGenerator",
+    "SummaryResult",
     "EncryptionService",
     "NoOpEncryption",
     "User",
     "UserRepository",
     "ValidationError",
+    "WhisperResult",
+    "WhisperSegment",
+    "WhisperTranscriber",
     "Writer",
     "IanuacareStack",
     "create_stack",
