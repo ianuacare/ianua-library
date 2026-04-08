@@ -18,8 +18,9 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 
 ### :material-database: Storage
 
-- :simple-postgresql: `PostgresDatabaseClient` (`ianuacare.infrastructure.storage`) for JSON payload persistence.
+- :simple-postgresql: `PostgresDatabaseClient` (`ianuacare.infrastructure.storage`) for relational persistence with dynamic columns (safe identifiers via `psycopg.sql`).
 - :fontawesome-brands-aws: `S3BucketClient` (`ianuacare.infrastructure.storage`) for blob/object storage.
+- `Reader` and `Writer` (`ianuacare.infrastructure.storage`) for CRUD reads/writes and pipeline artifact persistence over `DatabaseClient`.
 
 ### :material-robot-outline: AI provider
 

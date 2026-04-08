@@ -11,6 +11,7 @@ from ianuacare.core.pipeline.pipeline import Pipeline
 from ianuacare.core.pipeline.validator import DataValidator
 from ianuacare.infrastructure.storage.bucket import InMemoryBucketClient
 from ianuacare.infrastructure.storage.database import InMemoryDatabaseClient
+from ianuacare.infrastructure.storage.reader import Reader
 from ianuacare.infrastructure.storage.writer import Writer
 
 
@@ -32,6 +33,7 @@ def test_full_pipeline_with_in_memory_infra() -> None:
         DataManager(),
         DataValidator(),
         writer,
+        Reader(db),
         orch,
         AuditService(db),
     )

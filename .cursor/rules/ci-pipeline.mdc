@@ -1,0 +1,40 @@
+---
+description: CI/CD pipeline conventions for Flask backend
+globs: .github/**/*
+alwaysApply: false
+---
+
+# CI/CD Pipeline
+
+## Workflow Structure
+```
+validate.yml (on: push/PR to main)
+  ├── lint
+  │     ├── ruff check .
+  │     ├── ruff format --check . (or black --check .)
+  │     └── mypy app/ (if enabled)
+  ├── test
+  │     └── pytest -q
+  └── security
+        └── pip-audit
+
+deploy.yml (on: workflow_dispatch)
+  ├── Build Docker image
+  ├── Push to registry
+  └── Deploy to target environment
+```
+
+## Rules for GitHub Actions Changes
+- Never skip CI steps without team approval
+- Secrets via GitHub repository/environment secrets — never hardcoded
+- `concurrency` group prevents duplicate workflow runs (cancel-in-progress: true)
+
+## Merge Rules
+- Squash merge to `main` only
+- All jobs in `validate.yml` must be green before merge
+- Branch protection enforced on `main`
+
+## Deploy
+- Manual trigger only via `workflow_dispatch`
+- Production deploy requires lint + test + security checks green
+- Docker image should be immutable/tagged (commit SHA or release tag)

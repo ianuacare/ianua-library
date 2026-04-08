@@ -160,7 +160,13 @@ Module path: `ianuacare.core.pipeline`
 
 ### `Pipeline`
 
-- `run(input_data, context: RequestContext) -> DataPacket` — full pipeline.
+- Constructor now requires: `data_manager`, `validator`, `writer`, `reader`, `orchestrator`, `audit_service`.
+- `run(input_data, context: RequestContext) -> DataPacket` — backward-compatible alias of `run_model`.
+- `run_model(input_data, context: RequestContext) -> DataPacket` — full model flow (`collect -> validate -> write_raw -> orchestrate -> write_processed -> write_result`).
+- `run_crud(operation, input_data, context: RequestContext) -> DataPacket` — CRUD flow:
+  - write ops (`create`, `update`, `delete`) use `Writer`
+  - read ops (`read_one`, `read_many`) use `Reader`
+  - result is set in `packet.processed_data` consistently.
 
 ## Orchestration
 
@@ -198,13 +204,19 @@ Module path: `ianuacare.infrastructure.storage`
 
 ### Protocols
 
-- `DatabaseClient`: `write(collection, record) -> dict`, `fetch_all(collection) -> list`
+- `DatabaseClient`:
+  - `create(collection, record) -> dict`
+  - `read_one(collection, *, key, value) -> dict | None`
+  - `read_many(collection, *, filters=None) -> list[dict]`
+  - `update(collection, *, key, value, updates) -> dict`
+  - `delete(collection, *, key, value) -> dict`
+  - legacy compatibility: `write(...)`, `fetch_all(...)`
 - `BucketClient`: `upload(key, content) -> dict`, `download(key) -> Any`
 
 ### Implementations
 
 - `InMemoryDatabaseClient`, `InMemoryBucketClient`
-- `PostgresDatabaseClient` (optional dependency: `psycopg`)
+- `PostgresDatabaseClient` (optional dependency: `psycopg`) using relational columns with safe identifiers (`psycopg.sql`)
 - `S3BucketClient` (optional dependency: `boto3`)
 
 ### `Writer`
@@ -213,9 +225,20 @@ Module path: `ianuacare.infrastructure.storage`
 - `write_processed(packet, context) -> dict`
 - `write_result(packet, context) -> dict`
 - `write_log(message, context) -> dict` — **message must not contain PHI**.
+- CRUD write methods:
+  - `write_create(collection, payload, context) -> dict`
+  - `write_update(collection, *, lookup_field, lookup_value, updates, context) -> dict`
+  - `write_delete(collection, *, lookup_field, lookup_value, context) -> dict`
 - Optional `encryption: EncryptionService | None` at constructor time.
 
 Raises `StorageError` on failure.
+
+### `Reader`
+
+- `read_one(collection, *, lookup_field, lookup_value, context) -> dict | None`
+- `read_many(collection, *, filters, context) -> list[dict]`
+
+Reads through the configured `DatabaseClient`; raises `StorageError` on failure.
 
 ## Audit
 
@@ -254,4 +277,4 @@ Module path: `ianuacare.presets`
 
 ### `create_stack(...)`
 
-- Factory that wires `AuthService`, `Writer`, `Orchestrator`, and `Pipeline` from injected adapters.
+- Factory that wires `AuthService`, `Writer`, `Reader`, `Orchestrator`, and `Pipeline` from injected adapters.

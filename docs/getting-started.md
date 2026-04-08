@@ -32,6 +32,7 @@ from ianuacare import (
     NLPModel,
     Orchestrator,
     Pipeline,
+    Reader,
     RequestContext,
     User,
     Writer,
@@ -40,6 +41,7 @@ from ianuacare import (
 db = InMemoryDatabaseClient()
 bucket = InMemoryBucketClient()
 writer = Writer(db, bucket)
+reader = Reader(db)
 provider = AIProvider()
 nlp = NLPModel(provider, "clinical-nlp-v1")
 
@@ -47,6 +49,7 @@ pipe = Pipeline(
     data_manager=DataManager(),
     validator=DataValidator(),
     writer=writer,
+    reader=reader,
     orchestrator=Orchestrator(
         DataParser(),
         {"nlp": nlp},
@@ -62,6 +65,57 @@ ctx = RequestContext(
 )
 packet = pipe.run({"text": "example input"}, ctx)
 print(packet.inference_result)
+```
+
+## CRUD flow example
+
+`Pipeline.run_crud(...)` executes CRUD operations through storage adapters:
+
+```python
+from ianuacare import (
+    AuditService,
+    DataManager,
+    DataParser,
+    DataValidator,
+    InMemoryBucketClient,
+    InMemoryDatabaseClient,
+    Orchestrator,
+    Pipeline,
+    Reader,
+    RequestContext,
+    User,
+    Writer,
+)
+from ianuacare.ai.base import BaseAIModel
+
+
+class NoOpModel(BaseAIModel):
+    def run(self, payload: object) -> dict:
+        return {"ok": True}
+
+
+db = InMemoryDatabaseClient()
+writer = Writer(db, InMemoryBucketClient())
+reader = Reader(db)
+pipe = Pipeline(
+    DataManager(),
+    DataValidator(),
+    writer,
+    reader,
+    Orchestrator(DataParser(), {"noop": NoOpModel()}, default_model_key="noop"),
+    AuditService(db),
+)
+ctx = RequestContext(User("u1", "operator", ["patients:create"]), "clinic-app")
+
+created = pipe.run_crud(
+    "create",
+    {
+        "collection": "patients",
+        "record": {"patient_id": "p-1001", "first_name": "Mario", "last_name": "Rossi"},
+    },
+    ctx,
+)
+print(created.processed_data)
 ```
 
 ### Cognito: password login + token authentication

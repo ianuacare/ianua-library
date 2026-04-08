@@ -1,0 +1,30 @@
+---
+description: Python style — minimal, readable, safe, refactorable, few comments
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python — style and quality
+
+## Minimal
+- One clear responsibility per module/function; avoid premature abstractions and dead code.
+- Prefer simple APIs and linear control flow over deep branching; extract only when duplication is real.
+
+## Readable
+- Descriptive names (verbs for functions, nouns for data); avoid opaque abbreviations.
+- Explicit signatures: type hints on public boundaries (parameters/returns); `Optional`/`Union` when the type is not obvious.
+- Formatting consistent with project tooling (e.g. ruff/black).
+
+## Safe
+- Never embed secrets or credentials in code; use environment variables or a secret store.
+- Validate external input at the boundary (schema, range, format); fail explicitly with typed exceptions or structured errors.
+- No bare `except:` or broad `except Exception:` without re-raise or targeted handling; no `eval`/`exec` on untrusted input.
+
+## Refactorable
+- Keep domain logic in pure functions or testable services; push side effects (I/O, DB) to the edges.
+- Pass or encapsulate external dependencies (repositories, clients) instead of scattering imports in hot paths.
+- Avoid mutable global state and implicit singletons that block tests and substitutions.
+
+## Comments
+- Prefer self-explanatory code over long comments.
+- Comment only the **why** (domain constraints, temporary workarounds with ticket refs, non-obvious performance), not the **what** that the code already states.

@@ -10,7 +10,7 @@ dist/
 build/
 
 # Editor / IDE
-.cursor/
+
 
 # Tools
 .mypy_cache/

@@ -1,0 +1,41 @@
+---
+description: Core backend conventions for Flask + ianua-library
+alwaysApply: true
+---
+
+# ianua-mind — Backend Conventions (Flask)
+
+## Stack
+- Python 3.12+ / Flask / ianua-library (`ianuacare`) / Docker
+
+## Architecture
+- API-first backend: business logic in services/modules, thin Flask routes
+- Prefer package layout by domain (`app/<domain>/...`) over generic util dumping
+- Keep handlers/controllers focused on: parse input, call service, map output/errors
+
+## Flask Patterns
+- Create app via factory (`create_app`) and register blueprints by module
+- Validate request payloads explicitly (schema-based when available)
+- Return structured JSON errors with stable error codes
+- Never put domain logic directly in blueprint functions
+
+## ianua-library Integration
+- Use `ianuacare` as domain dependency, wrapped by local adapter/services
+- Avoid scattering direct library calls across endpoints
+- Convert library exceptions to app-level typed errors before responding
+- Pin/track library updates in `requirements.txt` and test impacted flows
+
+## Configuration
+- Use environment variables for runtime configuration
+- Never hardcode secrets or tokens in source code
+- Keep defaults safe and production-oriented (explicit debug toggles)
+
+## API Design
+- Version endpoints (`/api/v1/...`) for new APIs
+- Keep response shape consistent: `data`, `meta`, `errors` (when relevant)
+- Include request correlation id in logs and error payloads when available
+
+## Quality Gates
+- Tests: `pytest`
+- Lint/format: `ruff` (+ `black` if enabled by project)
+- Type checking: `mypy` for critical modules and service boundaries

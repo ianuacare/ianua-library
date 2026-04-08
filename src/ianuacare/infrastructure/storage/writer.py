@@ -88,6 +88,67 @@ class Writer:
         except Exception as exc:
             raise StorageError("Failed to write log") from exc
 
+    def write_create(
+        self,
+        collection: str,
+        payload: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Create a CRUD record in ``collection``."""
+        try:
+            record = {
+                **payload,
+                "product": context.product,
+                "user_id": context.user.user_id,
+            }
+            return self._db.create(collection, record)
+        except Exception as exc:
+            raise StorageError("Failed to create record") from exc
+
+    def write_update(
+        self,
+        collection: str,
+        *,
+        lookup_field: str,
+        lookup_value: Any,
+        updates: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Update CRUD records by lookup pair."""
+        try:
+            enriched_updates = {
+                **updates,
+                "product": context.product,
+                "user_id": context.user.user_id,
+            }
+            return self._db.update(
+                collection,
+                key=lookup_field,
+                value=lookup_value,
+                updates=enriched_updates,
+            )
+        except Exception as exc:
+            raise StorageError("Failed to update record") from exc
+
+    def write_delete(
+        self,
+        collection: str,
+        *,
+        lookup_field: str,
+        lookup_value: Any,
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Delete CRUD records by lookup pair."""
+        try:
+            _ = context  # currently unused; interface kept consistent with other methods
+            return self._db.delete(
+                collection,
+                key=lookup_field,
+                value=lookup_value,
+            )
+        except Exception as exc:
+            raise StorageError("Failed to delete record") from exc
+
     @staticmethod
     def _blob_key(
         context: RequestContext,
