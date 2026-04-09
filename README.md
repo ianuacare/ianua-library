@@ -15,6 +15,7 @@ See the [`docs/`](docs/) folder:
 - [Index](docs/index.md)
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
+- [Audio transcription and diarization](docs/audio-diarization.md) (`ianuacare.ai.audio`, optional `[audio]` extra)
 - [API reference](docs/api-reference.md)
 - [Preconfigurations](docs/preconfigurations.md)
 - [Extending](docs/extending.md)
@@ -34,6 +35,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `PostgresDatabaseClient` (PostgreSQL)
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI)
+- Speech pipeline (`ianuacare.ai.audio`): `DiarizationPipeline`, `SpeechTranscriber`, `OpenAISpeechTranscriber`, `SummaryGenerator` (requires **`[audio]`** extra)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)
 - `EnvConfigService` and `StructuredLogger`
@@ -42,7 +44,7 @@ The library now includes production-oriented adapters and a generic stack factor
 Install optional dependencies as needed:
 
 ```bash
-pip install -e ".[aws,postgres,together,redis]"
+pip install -e ".[aws,postgres,together,redis,audio]"
 ```
 
 ## Documentation policy

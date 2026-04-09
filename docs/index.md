@@ -18,6 +18,7 @@ information (PHI) into logs.
 |----------|-------------|
 | [Architecture](architecture.md) | Components, relationships, data flow |
 | [Getting started](getting-started.md) | Install, minimal example |
+| [Audio transcription and diarization](audio-diarization.md) | `ianuacare.ai.audio`, pluggable ASR and session artifacts |
 | [API reference](api-reference.md) | Public classes and methods |
 | [Preconfigurations](preconfigurations.md) | Ready-to-use adapters and stack factory |
 | [Extending](extending.md) | Custom models, storage, validation |

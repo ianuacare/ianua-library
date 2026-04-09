@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any
 
-from ianuacare.audio.whisper import WhisperResult, WhisperSegment, WhisperTranscriber
+from ianuacare.ai.audio.transcription import (
+    NullSpeechTranscriber,
+    SpeechTranscriber,
+    WhisperResult,
+    WhisperSegment,
+)
 
 
 @dataclass(slots=True)
@@ -82,13 +87,13 @@ class DiarizationPipeline:
 
     def __init__(
         self,
-        transcriber: WhisperTranscriber | None = None,
+        transcriber: SpeechTranscriber | None = None,
         pause_detector: PauseDetector | None = None,
         spectral: SpectralAnalyzer | None = None,
         embedder: SpeakerEmbedder | None = None,
         clusterer: SpeakerClusterer | None = None,
     ) -> None:
-        self._transcriber = transcriber or WhisperTranscriber()
+        self._transcriber: SpeechTranscriber = transcriber or NullSpeechTranscriber()
         self._pause_detector = pause_detector or PauseDetector()
         self._spectral = spectral or SpectralAnalyzer()
         self._embedder = embedder or SpeakerEmbedder()

@@ -198,20 +198,22 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.nlp`, `ianuacare.ai.cv`, `ianuacare.
 
 - `run(payload) -> Any` — delegates to `provider.infer(model_name, payload)`.
 
-## Audio
+## Audio / speech pipeline
 
-Module path: `ianuacare.audio` (re-exported from `ianuacare`).
+Module path: **`ianuacare.ai.audio`** (also re-exported from the top-level `ianuacare` package).
 
 Requires optional dependency **`pip install "ianuacare[audio]"`**.
 
-- `WhisperTranscriber` — wrapper around speech-to-text provider calls.
+- `SpeechTranscriber` — protocol for file-based ASR (`transcribe(audio_path, ...)` → `WhisperResult`).
+- `OpenAISpeechTranscriber` — OpenAI transcriptions API implementation; **`WhisperTranscriber`** is an alias.
+- `NullSpeechTranscriber` — no-op transcriber for tests or missing credentials.
 - `PauseDetector` — segment candidate detection from silence/pause analysis.
 - `SpectralAnalyzer` — FFT/spectral feature extraction utilities.
 - `SpeakerEmbedder` — transforms segment features into speaker embeddings.
 - `SpeakerClusterer` — speaker assignment over embeddings.
-- `DiarizationPipeline` — end-to-end transcription + diarization orchestration.
+- `DiarizationPipeline` — end-to-end transcription + diarization orchestration (inject `SpeechTranscriber`).
 - `DiarizationResult` — structured output with text, segments, and metadata.
-- `SummaryGenerator` — summary generation from transcript text.
+- `SummaryGenerator` — summary generation from diarized segment dicts via `AIProvider.infer`.
 
 ## Storage
 

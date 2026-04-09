@@ -1,8 +1,10 @@
 # Audio transcription and diarization
 
-This page documents the reusable audio module shipped in `ianuacare.audio`.
+This page documents the reusable speech pipeline in **`ianuacare.ai.audio`**
+(also re-exported from the top-level `ianuacare` package).
+
 The module is designed to be orchestration-friendly from application code while
-keeping the signal-processing and LLM primitives inside the library.
+keeping signal-processing and provider-facing primitives inside the library.
 
 ## Install
 
@@ -20,62 +22,78 @@ pip install -e ".[dev,audio]"
 
 ## Public API
 
-Available imports from `ianuacare`:
+Primary import path:
 
-- `WhisperTranscriber`
-- `PauseDetector`
-- `SpectralAnalyzer`
-- `SpeakerEmbedder`
-- `SpeakerClusterer`
-- `DiarizationPipeline`
-- `DiarizationResult`
-- `SummaryGenerator`
+```python
+from ianuacare.ai.audio import (
+    DiarizationPipeline,
+    NullSpeechTranscriber,
+    OpenAISpeechTranscriber,
+    SpeechTranscriber,
+    SummaryGenerator,
+    WhisperTranscriber,
+)
+```
+
+The same symbols are available from `from ianuacare import ...` for convenience.
+
+- **`SpeechTranscriber`** — protocol for file-based ASR; plug in any backend.
+- **`OpenAISpeechTranscriber`** / **`WhisperTranscriber`** (alias) — OpenAI transcription API.
+- **`NullSpeechTranscriber`** — no-op ASR for tests or offline pipelines.
+- **`DiarizationPipeline`** — orchestrates ASR segments + diarization heuristics.
+- **`SummaryGenerator`** — summarization from segment dicts via an injected `AIProvider`.
 
 ## Pipeline overview
 
 `DiarizationPipeline` runs these steps:
 
-1. Load audio signal and normalize metadata (sample rate/channels).
-2. Detect speech intervals and split candidate segments.
-3. Generate transcript chunks with `WhisperTranscriber`.
-4. Extract spectral features (`SpectralAnalyzer`) per segment.
-5. Build speaker embeddings (`SpeakerEmbedder`).
-6. Assign speaker labels with nearest-neighbor clustering (`SpeakerClusterer`).
-7. Return a structured `DiarizationResult` with segment-level metadata.
+1. Load audio from a file path and run the injected **`SpeechTranscriber`**.
+2. Split / clean segment candidates (`PauseDetector`).
+3. Extract lightweight features per segment (`SpectralAnalyzer`).
+4. Build embeddings (`SpeakerEmbedder`) and cluster (`SpeakerClusterer`).
+5. Return a structured `DiarizationResult` with segment-level metadata.
 
-The pipeline output is deterministic for the same input and config, except for
-external model variability from upstream providers.
+Inject a real transcriber from application configuration; the default constructor uses
+`NullSpeechTranscriber` until you pass an implementation (for example OpenAI).
 
 ## Basic usage
 
 ```python
-from ianuacare import DiarizationPipeline
+from ianuacare.ai.audio import DiarizationPipeline, OpenAISpeechTranscriber
 
-pipeline = DiarizationPipeline()
+# Example: OpenAI — application supplies the client and model.
+transcriber = OpenAISpeechTranscriber(client=my_openai_client, model="whisper-1")
+pipeline = DiarizationPipeline(transcriber=transcriber)
 result = pipeline.run(
-    audio_bytes=my_audio_bytes,
-    filename="session.wav",
+    "/path/to/session.wav",
     num_speakers=2,
     language="it",
 )
 
-print(result.text)
+print(result.raw_transcription)
 for segment in result.segments:
-    print(segment["speaker"], segment["start"], segment["end"], segment["text"])
+    print(segment["speaker_id"], segment["start"], segment["end"], segment["text"])
 ```
 
 ## Summary generation
 
-Use `SummaryGenerator` on transcript text or already diarized output:
+`SummaryGenerator` expects **segment dictionaries** (e.g. from `DiarizationResult.segments`)
+and an optional **`AIProvider`**. For `model_name="summarizer"`, the provider should return
+`{"text": "..."}`; otherwise the library falls back to heuristic bullet points.
 
 ```python
-from ianuacare import AIProvider, SummaryGenerator
+from ianuacare import AIProvider
+from ianuacare.ai.audio import SummaryGenerator
 
-generator = SummaryGenerator(AIProvider())
+generator = SummaryGenerator(AIProvider(my_infer_fn))
 summary = generator.generate(
-    text="Speaker A: ...\nSpeaker B: ...",
-    prompt_template="Generate a concise clinical summary with key points.",
+    segments=[
+        {"speaker_id": 0, "text": "Hello."},
+        {"speaker_id": 1, "text": "Hi there."},
+    ],
+    context={"session_id": "ses_1"},
 )
+print(summary.text)
 ```
 
 ## Configuration guidance
@@ -101,4 +119,3 @@ Application code should map these exceptions to stable API error codes.
 - Do not log raw audio payloads or full transcripts in plaintext logs.
 - Avoid placing PHI in trace/debug metadata fields.
 - Apply retention controls in the application layer for audio artifacts.
-
