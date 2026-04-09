@@ -26,6 +26,11 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 
 - :material-brain: `TogetherAIProvider` (`ianuacare.ai.providers`) for Together chat inference.
 
+### :material-microphone: Speech (transcription / diarization / transcript summary)
+
+- Module **`ianuacare.ai.audio`** (optional **`audio`** extra: `pip install "ianuacare[audio]"`): `SpeechTranscriber` protocol, `OpenAISpeechTranscriber` / `WhisperTranscriber`, `NullSpeechTranscriber`, `DiarizationPipeline`, `SummaryGenerator` with injected `AIProvider`.
+- See [Audio transcription and diarization](audio-diarization.md) for usage; apps typically wire one shared `AIProvider` + transcriber from configuration (see product backend docs).
+
 ### :material-lightning-bolt-circle: Cache and encryption
 
 - `CacheClient` + `InMemoryCacheClient` (`ianuacare.infrastructure.cache`)

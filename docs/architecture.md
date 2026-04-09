@@ -42,7 +42,7 @@ flowchart LR
 | Layer | Responsibility | Main modules |
 |-------|----------------|--------------|
 | **Core** | Domain models, business flow, errors, auth, orchestration and pipeline logic. | `ianuacare.core.models`, `ianuacare.core.pipeline`, `ianuacare.core.orchestration`, `ianuacare.core.auth`, `ianuacare.core.audit`, `ianuacare.core.config`, `ianuacare.core.logging`, `ianuacare.core.exceptions` |
-| **AI** | AI abstractions and AI area packages. | `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.providers`, `ianuacare.ai.nlp`, `ianuacare.ai.cv`, `ianuacare.ai.tabular` |
+| **AI** | AI abstractions, area packages, and speech pipeline. | `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.providers`, `ianuacare.ai.nlp`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`, `ianuacare.ai.audio` (ASR/diarization/summary helpers; optional **`[audio]`** extra) |
 | **Infrastructure** | External adapters and persistence implementations. | `ianuacare.infrastructure.storage`, `ianuacare.infrastructure.auth`, `ianuacare.infrastructure.cache`, `ianuacare.infrastructure.encryption` |
 
 ## Package structure
@@ -51,6 +51,7 @@ flowchart LR
 src/ianuacare/
   core/
   ai/
+    audio/
     providers/
     nlp/
     cv/

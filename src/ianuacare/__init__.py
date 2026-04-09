@@ -1,13 +1,16 @@
 """Ianuacare: healthcare data pipeline and AI inference framework."""
 
 from ianuacare.ai import AIProvider, BaseAIModel, NLPModel
-from ianuacare.audio import (
+from ianuacare.ai.audio import (
     DiarizationPipeline,
     DiarizationResult,
+    NullSpeechTranscriber,
+    OpenAISpeechTranscriber,
     PauseDetector,
     SpeakerClusterer,
     SpeakerEmbedder,
     SpectralAnalyzer,
+    SpeechTranscriber,
     SummaryGenerator,
     SummaryResult,
     WhisperResult,
@@ -91,6 +94,8 @@ __all__ = [
     "InMemoryCacheClient",
     "InMemoryDatabaseClient",
     "NLPModel",
+    "NullSpeechTranscriber",
+    "OpenAISpeechTranscriber",
     "PauseDetector",
     "OrchestrationError",
     "Orchestrator",
@@ -100,6 +105,7 @@ __all__ = [
     "RequestContext",
     "SpeakerClusterer",
     "SpeakerEmbedder",
+    "SpeechTranscriber",
     "SpectralAnalyzer",
     "S3BucketClient",
     "StructuredLogger",

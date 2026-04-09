@@ -23,6 +23,12 @@ orch = Orchestrator(
 
 Then set `RequestContext(..., metadata={"model_key": "vision"})` when routing to that model.
 
+## Custom speech-to-text (`SpeechTranscriber`)
+
+For session transcription and diarization, `DiarizationPipeline` accepts any object implementing **`SpeechTranscriber`** (`transcribe(audio_path, *, language=..., response_format=...) -> WhisperResult`). Use **`OpenAISpeechTranscriber`** for the built-in OpenAI implementation, **`NullSpeechTranscriber`** for tests, or your own class for another vendor’s file-based ASR API. See [Audio transcription and diarization](audio-diarization.md).
+
+`SummaryGenerator` takes an `AIProvider`; for `infer(..., model_name="summarizer")` your provider should return `{"text": "..."}` when a real summary is available.
+
 ## Custom parsing
 
 Subclass `DataParser` (`ianuacare.core.orchestration`) and override `_parse_impl` for schema validation, FHIR normalization, etc.:

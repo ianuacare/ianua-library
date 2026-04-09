@@ -204,7 +204,7 @@ mypy src
 ## Next steps
 
 - Read [Audio transcription and diarization](audio-diarization.md) for reusable
-  speech pipeline primitives.
+  speech pipeline primitives under `ianuacare.ai.audio`.
 - Read [API reference](api-reference.md) for class details.
 - Read [Preconfigurations](preconfigurations.md) for production-ready adapters.
 - Read [Extending](extending.md) to add custom models and validation.

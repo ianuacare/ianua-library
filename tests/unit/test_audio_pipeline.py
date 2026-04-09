@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from ianuacare.audio import DiarizationPipeline, SummaryGenerator, WhisperResult, WhisperSegment
+from ianuacare.ai.audio import DiarizationPipeline, SummaryGenerator, WhisperResult, WhisperSegment
 
 
 def test_diarization_pipeline_returns_segments() -> None:
@@ -29,3 +29,9 @@ def test_summary_generator_fallback() -> None:
     )
     assert result.text
     assert len(result.key_points) >= 1
+
+
+def test_default_pipeline_uses_null_transcriber() -> None:
+    out = DiarizationPipeline().run("/nonexistent-for-mock.wav", num_speakers=2)
+    assert out.raw_transcription == ""
+    assert out.segments == []
