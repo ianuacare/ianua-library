@@ -28,8 +28,9 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 
 ### :material-microphone: Speech (transcription / diarization / transcript summary)
 
-- Module **`ianuacare.ai.audio`** (optional **`audio`** extra: `pip install "ianuacare[audio]"`): `SpeechTranscriber` protocol, `OpenAISpeechTranscriber` / `WhisperTranscriber`, `NullSpeechTranscriber`, `DiarizationPipeline`, `SummaryGenerator` with injected `AIProvider`.
-- See [Audio transcription and diarization](audio-diarization.md) for usage; apps typically wire one shared `AIProvider` + transcriber from configuration (see product backend docs).
+- Modules **`ianuacare.ai.models.inference`**, **`ianuacare.ai.providers`**, **`ianuacare.ai.models.normalizer`** (optional **`audio`** extra: `pip install "ianuacare[audio]"`).
+- Main classes: `Transcription`, `DiarizationModel`, `SummaryModel`, `SpeechTranscriptionProvider`, `ModelOutNormalizer`.
+- See [Audio transcription and diarization](audio-diarization.md) for usage; apps wire provider + normalizer, while models stay vendor-agnostic.
 
 ### :material-lightning-bolt-circle: Cache and encryption
 
@@ -52,12 +53,12 @@ from ianuacare import (
     InMemoryBucketClient,
     InMemoryDatabaseClient,
     NLPModel,
-    AIProvider,
+    CallableProvider,
     UserRepository,
     create_stack,
 )
 
-provider = AIProvider()
+provider = CallableProvider()
 model = NLPModel(provider, "clinical")
 
 stack = create_stack(

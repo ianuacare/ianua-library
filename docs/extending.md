@@ -5,7 +5,7 @@
 Subclass `BaseAIModel` and register instances in `Orchestrator`:
 
 ```python
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.orchestration.orchestrator import Orchestrator
 from ianuacare.core.orchestration.parser import DataParser
 
@@ -23,11 +23,12 @@ orch = Orchestrator(
 
 Then set `RequestContext(..., metadata={"model_key": "vision"})` when routing to that model.
 
-## Custom speech-to-text (`SpeechTranscriber`)
+## Custom speech-to-text
 
-For session transcription and diarization, `DiarizationPipeline` accepts any object implementing **`SpeechTranscriber`** (`transcribe(audio_path, *, language=..., response_format=...) -> WhisperResult`). Use **`OpenAISpeechTranscriber`** for the built-in OpenAI implementation, **`NullSpeechTranscriber`** for tests, or your own class for another vendor’s file-based ASR API. See [Audio transcription and diarization](audio-diarization.md).
+Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(provider, model_name, normalizer)`.
+`DiarizationModel` composes `Transcription`, `PauseParser`, `SpectralParser`, `SpeakerEmbedder`, and `SpeakerClusterer`.
 
-`SummaryGenerator` takes an `AIProvider`; for `infer(..., model_name="summarizer")` your provider should return `{"text": "..."}` when a real summary is available.
+`SummaryModel` also uses the same provider + normalizer pattern (`infer` + normalize).
 
 ## Custom parsing
 
