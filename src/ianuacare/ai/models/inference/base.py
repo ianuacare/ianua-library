@@ -7,9 +7,9 @@ from typing import Any
 
 
 class BaseAIModel(ABC):
-    """Subclass to implement product-specific inference."""
+    """Common model interface."""
 
     @abstractmethod
     def run(self, payload: Any) -> Any:
-        """Run inference on ``payload`` and return structured output."""
+        """Run model inference over ``payload``."""
         ...

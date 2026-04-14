@@ -1,15 +1,15 @@
-"""Example NLP model implementation."""
+"""NLP model base implementation."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from ianuacare.ai.base import BaseAIModel
-from ianuacare.ai.provider import AIProvider
+from ianuacare.ai.models.inference.base import BaseAIModel
+from ianuacare.ai.providers.base import AIProvider
 
 
 class NLPModel(BaseAIModel):
-    """Routes inference through an :class:`AIProvider` using a fixed ``model_name``."""
+    """Routes inference through an :class:`AIProvider` and fixed model name."""
 
     def __init__(self, provider: AIProvider, model_name: str) -> None:
         self._provider = provider
@@ -20,6 +20,4 @@ class NLPModel(BaseAIModel):
         return self._model_name
 
     def run(self, payload: Any) -> Any:
-        """Call the provider and return the inference result."""
         return self._provider.infer(self._model_name, payload)
-

@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.exceptions.errors import InferenceError, OrchestrationError
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
