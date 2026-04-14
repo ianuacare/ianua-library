@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Reserved for future use. The decision-log-patterns skill currently has no per-project configuration — all rules are universal. This file exists as a placeholder so the scaffold update mechanism (managed/example/user-owned) recognizes the skill directory as conformant.",
+  "version": 1
+}

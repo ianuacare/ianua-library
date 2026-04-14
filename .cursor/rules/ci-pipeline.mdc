@@ -1,5 +1,5 @@
 ---
-description: CI/CD pipeline conventions for Flask backend
+description: CI/CD pipeline structure, GitHub Actions workflows, and deploy rules
 globs: .github/**/*
 alwaysApply: false
 ---
@@ -9,23 +9,25 @@ alwaysApply: false
 ## Workflow Structure
 ```
 validate.yml (on: push/PR to main)
-  ├── lint
-  │     ├── ruff check .
-  │     ├── ruff format --check . (or black --check .)
-  │     └── mypy app/ (if enabled)
-  ├── test
-  │     └── pytest -q
-  └── security
-        └── pip-audit
+  ├── _audit_and_lint.yml
+  │     ├── bundler-audit --update
+  │     ├── brakeman -q -w2
+  │     ├── importmap audit
+  │     └── rubocop --parallel -f github
+  └── _tests.yml
+        ├── db:schema:load (not db:migrate)
+        ├── db:migrate + git diff --exit-code (schema drift check)
+        └── bin/rake (full RSpec suite)
 
 deploy.yml (on: workflow_dispatch)
-  ├── Build Docker image
-  ├── Push to registry
-  └── Deploy to target environment
+  ├── Inputs: environment (production/staging), instance (easydoctor/monzino)
+  ├── Optional: run lint_and_tests first
+  └── .github/actions/deploy → Kamal → ghcr.io
 ```
 
 ## Rules for GitHub Actions Changes
 - Never skip CI steps without team approval
+- Schema drift check must stay: `db:migrate && git diff --exit-code`
 - Secrets via GitHub repository/environment secrets — never hardcoded
 - `concurrency` group prevents duplicate workflow runs (cancel-in-progress: true)
 
@@ -36,5 +38,6 @@ deploy.yml (on: workflow_dispatch)
 
 ## Deploy
 - Manual trigger only via `workflow_dispatch`
-- Production deploy requires lint + test + security checks green
-- Docker image should be immutable/tagged (commit SHA or release tag)
+- Always run with `lint_and_tests: true` for production
+- Instance-specific secrets: `EASYDOCTOR_SECRETS`, `MONZINO_SECRETS`
+- Kamal config: `config/deploy.yml`, Docker image built for `amd64`

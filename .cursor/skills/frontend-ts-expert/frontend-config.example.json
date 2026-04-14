@@ -1,0 +1,15 @@
+{
+  "docs_path": "docs/specs/frontend",
+  "component_prefix": "CMP",
+  "page_prefix": "PAGE",
+  "decision_prefix": "FED",
+  "framework": null,
+  "styling_approach": null,
+  "design_tokens_path": null,
+  "components_path": null,
+  "style_guide_path": null,
+  "ux_specs_path": "docs/specs/ux",
+  "test_runner": null,
+  "min_coverage_pct": 80,
+  "test_file_suffix": ".test"
+}

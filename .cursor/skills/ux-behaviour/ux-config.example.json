@@ -1,0 +1,14 @@
+{
+  "project_name": "My Project",
+  "docs_path": "docs/specs/ux",
+  "wireframe_prefix": "WF",
+  "flow_prefix": "FLOW",
+  "narrative_prefix": "UC",
+  "decision_prefix": "UXD",
+  "default_breakpoints": {
+    "mobile": "<768px",
+    "tablet": "768-1024px",
+    "desktop": ">1024px"
+  },
+  "mermaid_theme": "neutral"
+}

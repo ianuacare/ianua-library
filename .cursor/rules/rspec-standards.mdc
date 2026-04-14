@@ -1,0 +1,45 @@
+---
+description: RSpec testing standards, patterns, and coverage requirements
+globs: spec/**/*.rb
+alwaysApply: false
+---
+
+# RSpec Standards
+
+## String Literals
+- **Double quotes** everywhere in specs (enforced by RuboCop `Style/StringLiterals`)
+
+## Test Types
+- **Models**: `spec/models/` — validations, associations, scopes, instance methods
+- **Requests**: `spec/requests/` — use instead of controller specs; test full HTTP cycle
+- **Services**: `spec/services/` — unit test the `#call` method
+- **Policies**: `spec/policies/` — use `action_policy/rspec` DSL
+- **System/E2E**: `spec/system/` — Capybara browser tests for full user journeys
+- **Mailers**: `spec/mailers/` — use `have_enqueued_mail` or preview
+
+## FactoryBot
+- Always use factories — never `Model.new` or `Model.create` with raw attributes
+- Factories in `spec/factories/` — one file per model
+- Traits for variations, sequences for unique fields
+
+## Shared Examples & Contexts
+- Shared examples in `spec/support/shared/`
+- Available contexts: `with_admin_user`, `with_doctor_user`, `with_patient_user`, `with_department_scoped`
+- Include via `include_context "with admin user"`
+
+## Auth in Request Specs
+- HTML/backoffice: `Devise::Test::IntegrationHelpers` — `sign_in user` (see `spec/rails_helper.rb`)
+- API (`type: :request` against `Api::*`): `AuthorizationHelpers#auth_headers(token)` — `get path, headers: auth_headers(api_token.token)`
+
+## RuboCop RSpec (request specs)
+- `RSpec/MultipleExpectations` and `RSpec/ExampleLength`: prefer `before { get ... }` then one `it` per expectation (e.g. `it { expect(response).to have_http_status(:ok) }` plus a separate `it` for the body), instead of multiple `expect` lines in a single example.
+
+## Coverage Target
+- CI enforces SimpleCov **minimum line coverage 79%** (see `spec/spec_helper.rb`); aim for **>80%** when adding code
+- Run with: `COVERAGE=true bin/rspec`
+- SimpleCov filters: spec/, config/, db/
+
+## Common Matchers
+- `expect(response).to have_http_status(:ok)`
+- `expect { action }.to change(Model, :count).by(1)`
+- `be_authorized_to(:manage?, record)` (Action Policy)

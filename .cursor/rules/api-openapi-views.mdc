@@ -1,0 +1,9 @@
+---
+description: OpenAPI must match API Jbuilder JSON responses
+globs: app/views/api/**/*.jbuilder
+alwaysApply: false
+---
+
+# API Jbuilder and OpenAPI
+
+Jbuilder templates define the real JSON contract. When you change `app/views/api/**`, update `specs/api/` (paths/schemas) and run `bundle exec rake openapi:validate`. See rule `api-openapi` for layout and versioning (`/api` vs `/api/v1`).

@@ -6,9 +6,9 @@ alwaysApply: true
 # Git Conventions
 
 ## Commits (Conventional Commits)
-Format: `<type>(<scope>): <description>`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `security`. Scopes: `api`, `auth`, `core`, `ianua`, `infra`, `ci`, `docker`, `deps`, `docs`, `tests`. Breaking: `feat(api)!: ...`.
+Format: `<type>(<scope>): <description>`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `security`. Scopes: `pathways`, `surveys`, `patients`, `api`, `auth`, `admin`, `jobs`, `infra`, `ui`. Breaking: `feat(api)!: ...`.
 
-Examples: `feat(api): add patient risk endpoint`, `fix(ianua): map library timeout errors`, `test(tests): add flask integration coverage`.
+Examples: `feat(pathways): add step reordering`, `fix(surveys): prevent duplicate submission`, `test(patients): vitals request specs`.
 
 ## Branches
 `<type>/<issue>-<short-desc>` e.g. `feat/42-pathway-cloning`.

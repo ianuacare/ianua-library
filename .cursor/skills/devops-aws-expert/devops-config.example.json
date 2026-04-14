@@ -1,0 +1,23 @@
+{
+  "docs_path": "docs/specs/devops",
+  "decision_prefix": "INFRA",
+  "architecture_prefix": "ARCH",
+  "runbook_prefix": "RUN",
+  "deployment_prefix": "DEP",
+  "cost_prefix": "COST",
+  "iac_tool": null,
+  "aws_region": "eu-west-1",
+  "aws_account_alias": null,
+  "environments": ["dev", "staging", "production"],
+  "default_tags": {
+    "Project": null,
+    "ManagedBy": "terraform",
+    "CostCenter": null
+  },
+  "container_registry": "ecr",
+  "ci_platform": null,
+  "deployment_strategy": "rolling",
+  "monitoring_stack": "cloudwatch",
+  "dns_provider": "route53",
+  "cdn_provider": "cloudfront"
+}

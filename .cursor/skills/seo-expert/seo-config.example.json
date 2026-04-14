@@ -1,0 +1,8 @@
+{
+  "docs_path": "docs/specs/seo",
+  "audit_prefix": "SEO",
+  "strategy_prefix": "SEOS",
+  "decision_prefix": "SEOD",
+  "structured_data_prefix": "SEOSD",
+  "default_schema_format": "JSON-LD"
+}
