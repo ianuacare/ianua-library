@@ -1,0 +1,48 @@
+---
+description: Slim template conventions, ViewComponent rendering, Turbo Frames, i18n
+globs: "**/*.html.slim"
+alwaysApply: false
+---
+
+# Slim Templates
+
+## Syntax Rules
+- Always Slim syntax — never generate ERB (`<%= %>`) or HAML (`%tag`)
+- Ruby expressions: `= expression`, output suppression: `- expression`
+- Comments: `/` for Slim comment, `/!` for HTML comment
+
+## Forms
+```slim
+= form_with model: @patient, builder: AppFormBuilder do |f|
+  = f.text_field :name
+  = f.email_field :email
+  = f.select :role, Patient.roles.keys
+  = f.submit
+```
+
+## ViewComponents
+```slim
+= render Backoffice::Pathways::Card.new(pathway: @pathway)
+```
+
+## Turbo Frames
+```slim
+= turbo_frame_tag "patient-#{@patient.id}" do
+  ...
+```
+
+## Turbo Streams (responses)
+- Use `.turbo_stream.slim` format for stream responses
+
+## i18n
+- Always: `= t(".key")` (relative) or `= t("namespace.key")` (absolute)
+- Never hardcode Italian (or any) language strings in templates
+
+## Pagination
+```slim
+== pagy_nav(@pagy)
+```
+
+## Layout Slots (backoffice)
+- Header: `content_for :header`
+- Use `Backoffice::Layout::Header::Slot`, `Backoffice::Layout::Modal::Slot`, `Backoffice::Layout::Drawer::Slot`

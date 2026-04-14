@@ -15,7 +15,7 @@ See the [`docs/`](docs/) folder:
 - [Index](docs/index.md)
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
-- [Audio transcription and diarization](docs/audio-diarization.md) (`ianuacare.ai.audio`, optional `[audio]` extra)
+- [Audio transcription and diarization](docs/audio-diarization.md) (new `ianuacare.ai.models.inference` flow, optional `[audio]` extra)
 - [API reference](docs/api-reference.md)
 - [Preconfigurations](docs/preconfigurations.md)
 - [Extending](docs/extending.md)
@@ -35,7 +35,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `PostgresDatabaseClient` (PostgreSQL)
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI)
-- Speech pipeline (`ianuacare.ai.audio`): `DiarizationPipeline`, `SpeechTranscriber`, `OpenAISpeechTranscriber`, `SummaryGenerator` (requires **`[audio]`** extra)
+- Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `SummaryModel` (requires **`[audio]`** extra)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)
 - `EnvConfigService` and `StructuredLogger`
@@ -56,7 +56,7 @@ See [documentation workflow](docs/documentation-workflow.md).
 
 ```python
 from ianuacare import (
-    AIProvider,
+    CallableProvider,
     AuditService,
     DataManager,
     DataParser,
@@ -66,6 +66,7 @@ from ianuacare import (
     NLPModel,
     Orchestrator,
     Pipeline,
+    Reader,
     RequestContext,
     User,
     Writer,
@@ -74,12 +75,13 @@ from ianuacare import (
 db = InMemoryDatabaseClient()
 bucket = InMemoryBucketClient()
 writer = Writer(db, bucket)
-provider = AIProvider()
+provider = CallableProvider()
 nlp = NLPModel(provider, "clinical-nlp-v1")
 pipe = Pipeline(
     DataManager(),
     DataValidator(),
     writer,
+    Reader(db),
     Orchestrator(DataParser(), {"nlp": nlp}, default_model_key="nlp"),
     AuditService(db),
 )

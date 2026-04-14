@@ -1,41 +1,35 @@
 ---
-description: Core backend conventions for Flask + ianua-library
+description: Core EasyDoctor project conventions — stack, patterns, tools
 alwaysApply: true
 ---
 
-# ianua-mind — Backend Conventions (Flask)
+# EasyDoctor Conventions
 
 ## Stack
-- Python 3.12+ / Flask / ianua-library (`ianuacare`) / Docker
+- Rails 8.1 / Ruby 3.4.5 / PostgreSQL / Hotwire (Turbo + Stimulus) / TailwindCSS
 
-## Architecture
-- API-first backend: business logic in services/modules, thin Flask routes
-- Prefer package layout by domain (`app/<domain>/...`) over generic util dumping
-- Keep handlers/controllers focused on: parse input, call service, map output/errors
+## Templates
+- **Always Slim** (`.html.slim`) — never ERB, never HAML
+- Forms via `AppFormBuilder` with component-based inputs (`Form::Input::*`)
 
-## Flask Patterns
-- Create app via factory (`create_app`) and register blueprints by module
-- Validate request payloads explicitly (schema-based when available)
-- Return structured JSON errors with stable error codes
-- Never put domain logic directly in blueprint functions
+## Key Gems & Patterns
+- **Pagination**: Pagy — never Kaminari or will_paginate
+- **Search**: Ransack + ransack-enum
+- **Auth**: Devise (invitable, confirmable, 2FA) + SPID via JWT
+- **Authorization**: Action Policy (`app/policies/`) — always call `authorize!`
+- **Services**: inherit `ApplicationService` (Dry::Initializer), invoke with `ServiceClass.call(**)`
+- **Components**: inherit `ApplicationComponent` (Dry::Initializer + ViewComponent)
+- **Cloning**: Clowne gem
+- **Background jobs**: Solid Queue (database-backed)
 
-## ianua-library Integration
-- Use `ianuacare` as domain dependency, wrapped by local adapter/services
-- Avoid scattering direct library calls across endpoints
-- Convert library exceptions to app-level typed errors before responding
-- Pin/track library updates in `requirements.txt` and test impacted flows
+## Locale & Time
+- Default locale: `it`, available: `en` — always use `t()`, never hardcode Italian strings
+- Timezone: `Europe/Rome`
+- After editing YAML under `config/locales/`, run `bundle exec i18n-tasks normalize` so CI (`spec/i18n_spec.rb`) stays green
 
-## Configuration
-- Use environment variables for runtime configuration
-- Never hardcode secrets or tokens in source code
-- Keep defaults safe and production-oriented (explicit debug toggles)
+## Frontend JS
+- Importmap (no bundler) — Stimulus controllers in `app/javascript/controllers/`
 
-## API Design
-- Version endpoints (`/api/v1/...`) for new APIs
-- Keep response shape consistent: `data`, `meta`, `errors` (when relevant)
-- Include request correlation id in logs and error payloads when available
-
-## Quality Gates
-- Tests: `pytest`
-- Lint/format: `ruff` (+ `black` if enabled by project)
-- Type checking: `mypy` for critical modules and service boundaries
+## Deployment
+- Kamal with Docker, registry at ghcr.io
+- Multi-instance: `easydoctor` and `monzino`

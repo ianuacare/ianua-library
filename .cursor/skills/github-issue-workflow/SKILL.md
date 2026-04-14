@@ -38,9 +38,9 @@ Format: `[<type>] <description>`
 | `[chore]` | Infrastructure, dependencies |
 
 Examples:
-- `[feat] Add patient risk stratification endpoint`
-- `[fix] Handle ianua timeout with fallback response`
-- `[test] Add Flask API integration tests for triage flow`
+- `[feat] Add step reordering via drag-and-drop`
+- `[fix] Prevent duplicate survey submission on refresh`
+- `[test] Add request specs for vitals API endpoint`
 
 ## Labels
 
@@ -48,7 +48,7 @@ Examples:
 `feature`, `bug`, `refactor`, `test`, `docs`, `chore`, `security`, `performance`
 
 ### Domain Labels (apply one or more)
-`api`, `auth`, `core`, `ianua`, `infra`, `ci`, `docker`, `tests`, `docs`
+`pathways`, `surveys`, `patients`, `api`, `auth`, `admin`, `jobs`, `ui`, `infra`
 
 ### Status Labels (managed during development)
 `in-progress`, `blocked`, `needs-review`, `on-hold`
@@ -61,7 +61,7 @@ git checkout -b feat/42-step-reordering
 
 # PR body must close the issue
 gh pr create \
-  --title "feat(api): add patient risk stratification endpoint" \
+  --title "feat(pathways): add step reordering via drag-and-drop" \
   --body "Closes #42"
 ```
 

@@ -22,7 +22,7 @@ pip install -e ".[dev,aws]"
 
 ```python
 from ianuacare import (
-    AIProvider,
+    CallableProvider,
     AuditService,
     DataManager,
     DataParser,
@@ -42,7 +42,7 @@ db = InMemoryDatabaseClient()
 bucket = InMemoryBucketClient()
 writer = Writer(db, bucket)
 reader = Reader(db)
-provider = AIProvider()
+provider = CallableProvider()
 nlp = NLPModel(provider, "clinical-nlp-v1")
 
 pipe = Pipeline(
@@ -86,7 +86,7 @@ from ianuacare import (
     User,
     Writer,
 )
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 
 
 class NoOpModel(BaseAIModel):
@@ -201,10 +201,50 @@ ruff check src tests
 mypy src
 ```
 
+## E2E model flow (example)
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant Pipeline
+    participant Orchestrator
+    participant Model as BaseAIModel
+    participant Provider as AIProvider
+    participant Normalizer as ModelOutNormalizer
+    participant Writer
+
+    App->>Pipeline: run_model(input, context)
+    Pipeline->>Writer: write_raw(packet, context)
+    Pipeline->>Orchestrator: execute(packet, context)
+    Orchestrator->>Model: run(payload)
+    Model->>Provider: infer(model_name, payload)
+    Provider-->>Model: raw
+    Model->>Normalizer: normalize_*(raw)
+    Normalizer-->>Model: dict
+    Model-->>Orchestrator: result dict
+    Orchestrator-->>Pipeline: DataPacket
+    Pipeline->>Writer: write_processed + write_result
+```
+
+```python
+from ianuacare import (
+    CallableProvider,
+    ModelOutNormalizer,
+    NLPModel,
+    Transcription,
+)
+
+provider = CallableProvider(lambda model, payload: {"text": "ok", "segments": []})
+transcription = Transcription(provider, "asr", ModelOutNormalizer())
+generic_nlp = NLPModel(provider, "nlp")
+```
+
+The persistence policy is explicit: model `run()` returns output only; writing is done by `Pipeline`/`Writer` (and CRUD stays in `run_crud`).
+
 ## Next steps
 
 - Read [Audio transcription and diarization](audio-diarization.md) for reusable
-  speech pipeline primitives under `ianuacare.ai.audio`.
+  speech pipeline primitives under `ianuacare.ai.models.inference`.
 - Read [API reference](api-reference.md) for class details.
 - Read [Preconfigurations](preconfigurations.md) for production-ready adapters.
 - Read [Extending](extending.md) to add custom models and validation.

@@ -1,0 +1,20 @@
+{
+  "framework": "fastapi",
+  "orm": "sqlalchemy",
+  "test_runner": "pytest",
+  "runtime": "python",
+  "python_version": "3.12",
+  "type_checker": "mypy",
+  "src_path": "src",
+  "test_path": "tests",
+  "validation_library": "pydantic",
+  "logger": "structlog",
+  "package_manager": "uv",
+  "api_style": "rest",
+  "auth_strategy": "jwt",
+  "database": "postgresql",
+  "cache": "redis",
+  "queue": "celery",
+  "monorepo": false,
+  "async_first": true
+}

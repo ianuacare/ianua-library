@@ -1,8 +1,8 @@
 """AI layer."""
 
-from ianuacare.ai.base import BaseAIModel
-from ianuacare.ai.nlp.model import NLPModel
-from ianuacare.ai.provider import AIProvider
+from ianuacare.ai.models.inference.base import BaseAIModel
+from ianuacare.ai.models.inference.nlp import NLPModel
+from ianuacare.ai.providers.callable import CallableProvider
 
 
 class StubModel(BaseAIModel):
@@ -11,12 +11,12 @@ class StubModel(BaseAIModel):
 
 
 def test_ai_provider_default() -> None:
-    p = AIProvider()
+    p = CallableProvider()
     out = p.infer("m", {"x": 1})
     assert "model" in out or "result" in out or "echo" in str(out)
 
 
-def test_nlp_model(provider: AIProvider) -> None:
+def test_nlp_model(provider: CallableProvider) -> None:
     m = NLPModel(provider, "clinical")
     r = m.run("hello")
     assert r is not None

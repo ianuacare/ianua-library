@@ -1,0 +1,46 @@
+---
+description: Rails architecture patterns — STI, services, policies, domain model
+globs: app/**/*.rb
+alwaysApply: false
+---
+
+# Rails Patterns
+
+## User STI Hierarchy
+- `User` (base) → `Admin`, `Doctor`, `Patient`, `Agency`
+- `Admin`: full access, `god?` flag for Mission Control
+- `Doctor`: clinical, `external_clinician?` has restricted access
+- `Patient`: has nested `PatientInfo`
+- Never add STI subclasses without updating `app/policies/`
+
+## Devise (STI, confirmable, mailers)
+- `User` is confirmable with `reconfirmable`; email changes enqueue confirmation. `CustomDeviseMailer#confirmation_instructions` must handle every STI type that can receive that mail (or the mailer will raise).
+- Patient-specific flows use `/patients/confirmation`; staff (`Doctor` and other `User` mappings) use `/auth/confirmation` via `devise_for :users` and `Users::ConfirmationsController` so `user_confirmation_url` resolves.
+- Admin-initiated email edits in backoffice should call `skip_reconfirmation!` before `update` when the product requires immediate application without a confirmation link.
+
+## Service Objects
+- Inherit `ApplicationService` (uses `Dry::Initializer`)
+- Invoke: `ServiceClass.call(**keyword_args)`
+- Must implement `#call` — raise or return meaningful result
+- Namespace by domain: `Surveys::CheckAutomaticAssignments`, `Formulas::BmiCalculator`
+
+## Authorization (Action Policy)
+- Base: `ApplicationPolicy` delegates `admin?`, `doctor?`, `patient?`, `agency?` to user
+- `act_as_admin?` = `admin?`, `manage?` = `doctor? || admin?`
+- Helpers: `allow_admins`, `deny_external_clinicians`
+- Every controller action in backoffice must pass `verify_authorized`
+
+## Pathways Domain
+- `Pathway` → `Step` (ordered via `positioning` gem) → `PatientStep` (progress)
+- `PathwayPatient` links patients to pathways
+- Steps can trigger surveys, emails, and reminders
+- Cloning via `duplicate` action using Clowne gem
+
+## ViewComponents
+- Inherit `ApplicationComponent`
+- Delegates: `current_user`, `allowed_to?`, `authorized_scope`, `turbo_frame_tag` to helpers
+- `admin?` helper available: `allowed_to?(:act_as_admin?, with: ::ApplicationPolicy)`
+
+## Multi-Database
+- Dev: primary + queue | Production: primary + cache + queue + cable
+- Use `connects_to` only in dedicated models (SolidQueue, SolidCache, SolidCable)

@@ -1,21 +1,20 @@
 """Ianuacare: healthcare data pipeline and AI inference framework."""
 
-from ianuacare.ai import AIProvider, BaseAIModel, NLPModel
-from ianuacare.ai.audio import (
-    DiarizationPipeline,
-    DiarizationResult,
-    NullSpeechTranscriber,
-    OpenAISpeechTranscriber,
-    PauseDetector,
+from ianuacare.ai import (
+    AIProvider,
+    BaseAIModel,
+    CallableProvider,
+    DiarizationModel,
+    ModelOutNormalizer,
+    NLPModel,
+    PauseParser,
     SpeakerClusterer,
     SpeakerEmbedder,
-    SpectralAnalyzer,
-    SpeechTranscriber,
-    SummaryGenerator,
-    SummaryResult,
-    WhisperResult,
-    WhisperSegment,
-    WhisperTranscriber,
+    SpectralParser,
+    SpeechTranscriptionProvider,
+    SummaryModel,
+    TogetherAIProvider,
+    Transcription,
 )
 from ianuacare.core.audit import AuditService
 from ianuacare.core.auth import (
@@ -65,12 +64,12 @@ from ianuacare.infrastructure.storage import (
 )
 from ianuacare.presets import IanuacareStack, create_stack
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AIProvider",
-    "DiarizationPipeline",
-    "DiarizationResult",
+    "CallableProvider",
+    "DiarizationModel",
     "AuditService",
     "AuthService",
     "AuthenticationError",
@@ -94,9 +93,8 @@ __all__ = [
     "InMemoryCacheClient",
     "InMemoryDatabaseClient",
     "NLPModel",
-    "NullSpeechTranscriber",
-    "OpenAISpeechTranscriber",
-    "PauseDetector",
+    "ModelOutNormalizer",
+    "PauseParser",
     "OrchestrationError",
     "Orchestrator",
     "Pipeline",
@@ -105,21 +103,19 @@ __all__ = [
     "RequestContext",
     "SpeakerClusterer",
     "SpeakerEmbedder",
-    "SpeechTranscriber",
-    "SpectralAnalyzer",
+    "SpeechTranscriptionProvider",
+    "SpectralParser",
     "S3BucketClient",
     "StructuredLogger",
     "StorageError",
-    "SummaryGenerator",
-    "SummaryResult",
+    "SummaryModel",
+    "TogetherAIProvider",
+    "Transcription",
     "EncryptionService",
     "NoOpEncryption",
     "User",
     "UserRepository",
     "ValidationError",
-    "WhisperResult",
-    "WhisperSegment",
-    "WhisperTranscriber",
     "Writer",
     "IanuacareStack",
     "create_stack",

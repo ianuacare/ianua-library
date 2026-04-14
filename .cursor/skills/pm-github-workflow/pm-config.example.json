@@ -1,0 +1,24 @@
+{
+  "github": {
+    "org": "easydoctor-io",
+    "repo": "easydoctor-io/easydoctor-rails",
+    "project_number": 5,
+    "project_url": "https://github.com/orgs/easydoctor-io/projects/5",
+    "default_assignee": "github-handle-or-null"
+  },
+  "project_fields": {
+    "status": {
+      "field_id": "PVTSSF_…",
+      "options": {
+        "backlog": "option-id",
+        "ready": "option-id",
+        "in-progress": "option-id",
+        "in-review": "option-id",
+        "done": "option-id"
+      }
+    }
+  },
+  "labels": ["bug", "enhancement"],
+  "priorities": ["P0", "P1", "P2"],
+  "sizes": ["XS", "S", "M", "L", "XL"]
+}

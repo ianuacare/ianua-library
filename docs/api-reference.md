@@ -184,36 +184,42 @@ Module path: `ianuacare.core.orchestration`
 
 ## AI
 
-Module paths: `ianuacare.ai`, `ianuacare.ai.nlp`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`
+Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `ianuacare.ai.parsers`
 
-### `BaseAIModel` (abstract)
+### Inference models (`ianuacare.ai.models.inference`)
 
-- `run(payload: Any) -> Any` — implement in subclasses.
+- `BaseAIModel.run(payload: Any) -> Any` — abstract entry point.
+- `NLPModel(provider, model_name)` — base NLP model delegating to provider.
+- `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
+- `SummaryModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
+- `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
+- `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
+- `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
 
-### `AIProvider`
+### Normalizer (`ianuacare.ai.models.normalizer`)
 
-- `infer(model_name: str, payload: Any) -> dict` — default echoes payload; replace with HTTP/SDK calls.
+- `ModelOutNormalizer.normalize_transcript(raw) -> dict`
+- `ModelOutNormalizer.normalize_summary(raw) -> dict`
+- `ModelOutNormalizer.normalize_task(raw) -> dict`
 
-### `NLPModel`
+### Providers (`ianuacare.ai.providers`)
 
-- `run(payload) -> Any` — delegates to `provider.infer(model_name, payload)`.
+- `AIProvider.infer(model_name, payload) -> Any` — provider contract (raw output).
+- `CallableProvider` — callable-backed provider for tests.
+- `TogetherAIProvider` — Together chat completions adapter.
+- `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio).
 
-## Audio / speech pipeline
+### Parsers (`ianuacare.ai.parsers`)
 
-Module path: **`ianuacare.ai.audio`** (also re-exported from the top-level `ianuacare` package).
+- `BaseParser.parse(data) -> Any`
+- `PauseParser.parse(segments) -> list[dict]`
+- `SpectralParser.parse(segment) -> dict[str, float]`
 
-Requires optional dependency **`pip install "ianuacare[audio]"`**.
+## Breaking migration notes
 
-- `SpeechTranscriber` — protocol for file-based ASR (`transcribe(audio_path, ...)` → `WhisperResult`).
-- `OpenAISpeechTranscriber` — OpenAI transcriptions API implementation; **`WhisperTranscriber`** is an alias.
-- `NullSpeechTranscriber` — no-op transcriber for tests or missing credentials.
-- `PauseDetector` — segment candidate detection from silence/pause analysis.
-- `SpectralAnalyzer` — FFT/spectral feature extraction utilities.
-- `SpeakerEmbedder` — transforms segment features into speaker embeddings.
-- `SpeakerClusterer` — speaker assignment over embeddings.
-- `DiarizationPipeline` — end-to-end transcription + diarization orchestration (inject `SpeechTranscriber`).
-- `DiarizationResult` — structured output with text, segments, and metadata.
-- `SummaryGenerator` — summary generation from diarized segment dicts via `AIProvider.infer`.
+- Removed modules: `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.nlp`, `ianuacare.ai.audio`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`.
+- Use `CallableProvider` instead of instantiating `AIProvider` directly.
+- Model outputs are normalized dictionaries stored in `DataPacket.inference_result`.
 
 ## Storage
 

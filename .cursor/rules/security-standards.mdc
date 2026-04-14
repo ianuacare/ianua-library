@@ -1,41 +1,41 @@
 ---
-description: Security standards for healthcare data in Flask services
-globs: "**/*.py"
+description: Security standards for healthcare data — PII, encryption, authorization
+globs: app/**/*.rb
 alwaysApply: false
 ---
 
-# Security Standards (Healthcare + Flask)
+# Security Standards (Healthcare)
 
 ## PII & Health Data
 - **Never** log patient names, fiscal codes, diagnoses, or any health-related data
 - **Never** expose PII in error messages or API responses beyond what's needed
-- Redact sensitive fields before structured logging
-- Encrypt sensitive data at rest and in transit; key material must stay outside repository
+- Sensitive model attributes encrypted with Active Record Encryption
+- Keys managed via Rails credentials (never in env or code)
 
 ## Authorization
-- Every protected endpoint must require auth and scope checks
-- Centralize auth/authorization decorators or middleware
-- Enforce least privilege when querying tenant/patient scoped data
+- Every controller action in `backoffice/` is covered by `verify_authorized` (set in `Backoffice::ApplicationController`)
+- Use `authorize!` explicitly when policy check is conditional
+- Skip only with `skip_verify_authorized if: :devise_controller?`
+- Scope queries: use `authorized_scope(Model.all)` not raw queries
 
-## Input Validation
-- Validate query/path/body payloads explicitly (schema or typed validators)
-- Reject unknown fields for sensitive operations
-- Different validation rules for create/update where fields differ
+## Strong Parameters
+- Always explicit `params.require().permit()` — never `permit!` or `params.to_h`
+- Separate permit lists for create vs update when fields differ
 
 ## SQL Injection Prevention
-- Use parameterized queries/ORM filters only
+- Use parameterized queries, ActiveRecord scopes, or Arel
 - Never interpolate user input into SQL strings
 
-## HTTP Security
-- Disable debug mode in production
-- Add secure headers (`HSTS`, `X-Content-Type-Options`, `X-Frame-Options`, CSP as applicable)
-- Apply CORS with explicit allowlist, never wildcard with credentials
-- Webhooks must verify signatures and enforce replay protection if supported
+## CSRF
+- Standard Rails CSRF protection for HTML controllers
+- API controllers: `protect_from_forgery with: :null_session` (token auth instead)
+- Webhooks: verify signatures (Landbot, SurveyJS) before processing
 
 ## Dependency Security
-- Run vulnerability scan on dependencies before release
-- Track and patch vulnerable transitive dependencies quickly
+- Run before every release: `bin/bundler-audit --update`
+- Run for JS: `bin/importmap audit`
+- Brakeman in CI with `-w2` (warn level 2): `bin/brakeman -q -w2`
 
 ## Secrets
-- Secrets only from environment/secret manager
-- Never commit `.env`, API keys, service account keys, or tokens
+- All secrets via Rails credentials or env vars (see `.env.sample`)
+- Never commit `.env`, `master.key`, or credential files

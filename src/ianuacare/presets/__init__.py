@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.audit import AuditService
 from ianuacare.core.auth import AuthService
 from ianuacare.core.config.env import EnvConfigService

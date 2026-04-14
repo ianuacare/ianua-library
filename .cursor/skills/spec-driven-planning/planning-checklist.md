@@ -21,31 +21,33 @@ For each task you create, verify:
 
 ## Domain Analysis Prompts
 
-**Domain/Data**
-- Are there new entities or schema changes?
-- Is backward compatibility required for existing consumers?
-- Are there indexing/performance implications?
+**Database**
+- Does this require a new table? → Migration task first
+- Does this add columns to existing tables? → Migration + Model update
+- Does this change indexes? → Performance implications
 
 **Authorization**
-- Which roles/scopes can access each endpoint?
-- Is tenant/patient-level scoping enforced?
+- Which roles can perform each action?
+- Are there department-scoped restrictions?
+- Are external clinicians excluded?
 
 **API Surface**
-- Are new endpoints added? → OpenAPI task required
-- Are request/response contracts changed? → breaking change assessment
+- Does this create new API endpoints? → OpenAPI spec task required
+- Does this change response formats? → Breaking change? → Version bump
 
-**ianua-library Integration**
-- Does this require new/changed `ianuacare` calls?
-- Are timeout/retry/fallback expectations explicit?
-- Are external errors mapped to stable internal error codes?
+**Background Processing**
+- Does this need async processing? → Job task
+- Is it recurring? → Update `config/recurring.yml`
+- Does it send emails? → Mailer + template tasks
 
-**Operations**
-- Are Docker/runtime env vars impacted?
-- Are CI checks or deployment steps impacted?
+**Frontend**
+- Does this need new Stimulus controllers?
+- Are Turbo Frames needed for partial updates?
+- Are new ViewComponents needed?
 
-**Observability**
-- Do we need new logs/metrics/traces for this flow?
-- Are sensitive fields redacted in logs?
+**Internationalization**
+- New user-facing strings? → i18n task for both `it` and `en`
+- Date/time formatting? → Use Rails i18n helpers
 
 ## Issue Labels Reference
 
@@ -56,8 +58,11 @@ For each task you create, verify:
 | `refactor` | Code quality improvement |
 | `test` | Test-only change |
 | `docs` | Documentation only |
+| `pathways` | Pathway/Step domain |
+| `surveys` | Survey/Answer domain |
+| `patients` | Patient management |
 | `api` | API endpoints |
 | `auth` | Authentication/authorization |
-| `core` | Domain/business logic |
-| `ianua` | ianua-library integration |
+| `admin` | Backoffice admin |
+| `jobs` | Background jobs |
 | `infra` | Infrastructure/CI/deploy |

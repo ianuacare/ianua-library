@@ -1,6 +1,6 @@
 """End-to-end pipeline integration test."""
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.audit.service import AuditService
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.user import User

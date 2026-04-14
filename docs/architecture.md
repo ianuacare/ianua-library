@@ -42,7 +42,7 @@ flowchart LR
 | Layer | Responsibility | Main modules |
 |-------|----------------|--------------|
 | **Core** | Domain models, business flow, errors, auth, orchestration and pipeline logic. | `ianuacare.core.models`, `ianuacare.core.pipeline`, `ianuacare.core.orchestration`, `ianuacare.core.auth`, `ianuacare.core.audit`, `ianuacare.core.config`, `ianuacare.core.logging`, `ianuacare.core.exceptions` |
-| **AI** | AI abstractions, area packages, and speech pipeline. | `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.providers`, `ianuacare.ai.nlp`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`, `ianuacare.ai.audio` (ASR/diarization/summary helpers; optional **`[audio]`** extra) |
+| **AI** | Unified model/provider/normalizer hierarchy and speech pipeline. | `ianuacare.ai.models`, `ianuacare.ai.models.inference`, `ianuacare.ai.models.normalizer`, `ianuacare.ai.providers`, `ianuacare.ai.parsers` |
 | **Infrastructure** | External adapters and persistence implementations. | `ianuacare.infrastructure.storage`, `ianuacare.infrastructure.auth`, `ianuacare.infrastructure.cache`, `ianuacare.infrastructure.encryption` |
 
 ## Package structure
@@ -51,11 +51,11 @@ flowchart LR
 src/ianuacare/
   core/
   ai/
-    audio/
+    models/
+      inference/
+      normalizer.py
     providers/
-    nlp/
-    cv/
-    tabular/
+    parsers/
   infrastructure/
     auth/
     cache/
@@ -66,7 +66,7 @@ src/ianuacare/
 
 ## Relationships (from the class diagram)
 
-- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`. `Reader` holds `DatabaseClient`. `Orchestrator` holds `DataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`.
+- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`. `Reader` holds `DatabaseClient`. `Orchestrator` holds `DataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`; `Transcription`/`SummaryModel` hold `ModelOutNormalizer`; `DiarizationModel` composes transcription + parsers + embedder + clusterer.
 - **Dependency**: most services accept `DataPacket` and `RequestContext` per call (no long-lived coupling).
 - **Inheritance**: `NLPModel` extends `BaseAIModel`; concrete errors extend `IanuacareError`.
 
