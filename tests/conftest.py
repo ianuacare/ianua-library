@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ianuacare.ai.provider import AIProvider
+from ianuacare.ai.providers.callable import CallableProvider
 from ianuacare.core.auth.repository import UserRepository
 from ianuacare.core.auth.service import AuthService
 from ianuacare.core.models.context import RequestContext
@@ -49,5 +49,5 @@ def auth_service(auth_repo: UserRepository) -> AuthService:
 
 
 @pytest.fixture
-def provider() -> AIProvider:
-    return AIProvider()
+def provider() -> CallableProvider:
+    return CallableProvider()

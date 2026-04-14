@@ -1,6 +1,6 @@
 """Preset factory."""
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.auth.repository import UserRepository
 from ianuacare.infrastructure.storage import InMemoryBucketClient, InMemoryDatabaseClient
 from ianuacare.presets import create_stack

@@ -1,6 +1,6 @@
 """Pipeline unit tests."""
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.audit.service import AuditService
 from ianuacare.core.orchestration.orchestrator import Orchestrator
 from ianuacare.core.orchestration.parser import DataParser

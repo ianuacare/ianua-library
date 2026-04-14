@@ -1,6 +1,6 @@
 """Orchestrator cache integration."""
 
-from ianuacare.ai.base import BaseAIModel
+from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
 from ianuacare.core.models.user import User
