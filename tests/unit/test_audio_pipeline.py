@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ianuacare.ai.models.inference.diarization import DiarizationModel
-from ianuacare.ai.models.inference.summary import SummaryModel
+from ianuacare.ai.models.inference.LLM import LLMModel
 from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.models.normalizer import ModelOutNormalizer
 from ianuacare.ai.parsers.pause import PauseParser
@@ -34,13 +34,13 @@ def test_diarization_model_returns_segments() -> None:
     assert "speaker_id" in out["segments"][0]
 
 
-def test_summary_model_with_normalizer() -> None:
+def test_llm_model_with_normalizer() -> None:
     provider = CallableProvider(
         infer_fn=lambda model_name, payload: {
             "text": "- point A\n- point B",
         }
     )
-    result = SummaryModel(
+    result = LLMModel(
         provider=provider,
         model_name="summary",
         normalizer=ModelOutNormalizer(),

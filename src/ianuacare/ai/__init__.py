@@ -3,11 +3,11 @@
 from ianuacare.ai.models import (
     BaseAIModel,
     DiarizationModel,
+    LLMModel,
     ModelOutNormalizer,
     NLPModel,
     SpeakerClusterer,
     SpeakerEmbedder,
-    SummaryModel,
     Transcription,
 )
 from ianuacare.ai.parsers import BaseParser, PauseParser, SpectralParser
@@ -24,6 +24,7 @@ __all__ = [
     "BaseParser",
     "CallableProvider",
     "DiarizationModel",
+    "LLMModel",
     "ModelOutNormalizer",
     "NLPModel",
     "PauseParser",
@@ -31,7 +32,6 @@ __all__ = [
     "SpeakerEmbedder",
     "SpeechTranscriptionProvider",
     "SpectralParser",
-    "SummaryModel",
     "TogetherAIProvider",
     "Transcription",
 ]

@@ -1,4 +1,4 @@
-"""Summary model built on top of NLP provider + normalizer."""
+"""LLM model built on top of NLP provider + normalizer."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from ianuacare.ai.models.normalizer import ModelOutNormalizer
 from ianuacare.ai.providers.base import AIProvider
 
 
-class SummaryModel(NLPModel):
-    """Inference model for summaries."""
+class LLMModel(NLPModel):
+    """Inference model for LLM text generation tasks."""
 
     def __init__(
         self,

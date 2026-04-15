@@ -27,17 +27,17 @@ class Orchestrator:
         cache_ttl_seconds: int | None = 300,
     ) -> None:
         self._parser = parser
-        self._models = dict(models)
+        self._models = dict[str, BaseAIModel](models)
         self._default_model_key = default_model_key
         self._cache = cache
         self._cache_ttl_seconds = cache_ttl_seconds
 
     def execute(self, packet: DataPacket, context: RequestContext) -> DataPacket:
         """Parse, select model, run inference, and set ``processed_data`` / ``inference_result``."""
-        self._parser.parse(packet)
         model_key = self._select_model(context, packet)
         if model_key not in self._models:
             raise OrchestrationError(f"Unknown model key: {model_key}")
+        self._parser.parse(packet, model_key=model_key)
         model = self._models[model_key]
         payload = packet.parsed_data
         cache_key = self._build_cache_key(model_key=model_key, payload=payload)
