@@ -28,15 +28,15 @@ Then set `RequestContext(..., metadata={"model_key": "vision"})` when routing to
 Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(provider, model_name, normalizer)`.
 `DiarizationModel` composes `Transcription`, `PauseParser`, `SpectralParser`, `SpeakerEmbedder`, and `SpeakerClusterer`.
 
-`SummaryModel` also uses the same provider + normalizer pattern (`infer` + normalize).
+`LLMModel` also uses the same provider + normalizer pattern (`infer` + normalize).
 
 ## Custom parsing
 
-Subclass `DataParser` (`ianuacare.core.orchestration`) and override `_parse_impl` for schema validation, FHIR normalization, etc.:
+Subclass `DataParser` (`ianuacare.core.orchestration`) and override `_parse_impl` for schema validation, FHIR normalization, etc. The default `Orchestrator` passes `model_key` so you can branch per registered model:
 
 ```python
 class FhirParser(DataParser):
-    def _parse_impl(self, validated: object) -> dict:
+    def _parse_impl(self, validated: object, *, model_key: str | None = None) -> dict:
         # return a normalized structure
         return {"resource": validated}
 ```

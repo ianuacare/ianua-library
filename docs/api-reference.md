@@ -174,11 +174,11 @@ Module path: `ianuacare.core.orchestration`
 
 ### `DataParser`
 
-- `parse(packet: DataPacket) -> DataPacket` — default copies `validated_data` → `parsed_data`; override `_parse_impl` for custom parsing.
+- `parse(packet: DataPacket, *, model_key: str | None = None) -> DataPacket` — sets `parsed_data` from `validated_data`; when `model_key` is set, the default implementation maps inputs to the provider payload (for example `llm` → `{"prompt": "", "text": ...}`, `diarization` → `segments` plus optional `audio_path`, `num_speakers`, `language`, `response_format`). Override `_parse_impl(validated, *, model_key)` for custom parsing.
 
 ### `Orchestrator`
 
-- `execute(packet, context) -> DataPacket` — parse, select model, run inference, set `processed_data` and `inference_result`.
+- `execute(packet, context) -> DataPacket` — select model, then parse with `model_key`, run inference, set `processed_data` and `inference_result`.
 - `_select_model(context, packet) -> str` — uses `context.metadata["model_key"]`, `packet.metadata["model_key"]`, `default_model_key`, or a single registered model.
 - Optional cache integration via `cache: CacheClient | None` and `cache_ttl_seconds`.
 
@@ -191,7 +191,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `BaseAIModel.run(payload: Any) -> Any` — abstract entry point.
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
-- `SummaryModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
+- `LLMModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
 - `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
 - `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
 - `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
@@ -217,6 +217,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 
 ## Breaking migration notes
 
+- `SummaryModel` was renamed to `LLMModel` (`ianuacare.ai.models.inference.LLM`). Update imports and `model_key` values (for example `"llm"` when using the default `DataParser` mapping).
 - Removed modules: `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.nlp`, `ianuacare.ai.audio`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`.
 - Use `CallableProvider` instead of instantiating `AIProvider` directly.
 - Model outputs are normalized dictionaries stored in `DataPacket.inference_result`.

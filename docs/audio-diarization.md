@@ -2,7 +2,7 @@
 
 This page documents the new speech flow built with:
 
-- `ianuacare.ai.models.inference` (`Transcription`, `DiarizationModel`, `SummaryModel`)
+- `ianuacare.ai.models.inference` (`Transcription`, `DiarizationModel`, `LLMModel`)
 - `ianuacare.ai.providers` (`SpeechTranscriptionProvider`, `CallableProvider`)
 - `ianuacare.ai.models.normalizer.ModelOutNormalizer`
 - `ianuacare.ai.parsers` (`PauseParser`, `SpectralParser`)
@@ -26,9 +26,9 @@ pip install -e ".[dev,audio]"
 ```python
 from ianuacare import (
     DiarizationModel,
+    LLMModel,
     ModelOutNormalizer,
     SpeechTranscriptionProvider,
-    SummaryModel,
     Transcription,
 )
 ```
@@ -58,16 +58,16 @@ for segment in result["segments"]:
     print(segment["speaker_id"], segment["start"], segment["end"], segment["text"])
 ```
 
-## Summary generation
+## LLM text generation (summaries and similar)
 
-`SummaryModel` expects payload dictionaries and normalizes provider output through `ModelOutNormalizer`.
+`LLMModel` passes payloads to the provider and normalizes output through `ModelOutNormalizer` (same `normalize_summary` path as before). When using `Pipeline` + default `DataParser`, register the model under `model_key` `"llm"` and supply `validated_data` with at least `text`; the parser sets `prompt` to an empty string for the application layer to override if needed.
 
 ```python
-from ianuacare import CallableProvider, ModelOutNormalizer, SummaryModel
+from ianuacare import CallableProvider, ModelOutNormalizer, LLMModel
 
 provider = CallableProvider(lambda _m, _p: {"text": "- point A\n- point B"})
-summary = SummaryModel(provider, "summarizer", ModelOutNormalizer()).run(
-    {"segments": [{"speaker_id": 0, "text": "Hello"}, {"speaker_id": 1, "text": "Hi"}]}
+summary = LLMModel(provider, "summarizer", ModelOutNormalizer()).run(
+    {"prompt": "", "text": "Long transcript or notes to summarize."}
 )
 print(summary["text"])
 ```

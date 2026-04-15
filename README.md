@@ -21,10 +21,17 @@ See the [`docs/`](docs/) folder:
 - [Extending](docs/extending.md)
 - [Documentation workflow](docs/documentation-workflow.md)
 
-Build docs locally:
+Build docs locally (install the **`docs`** extra so MkDocs Material matches this repo):
 
 ```bash
+pip install -e ".[docs]"
 mkdocs serve
+```
+
+Static site (strict; fails on documentation warnings):
+
+```bash
+mkdocs build --strict
 ```
 
 ## Preconfigured adapters
@@ -35,7 +42,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `PostgresDatabaseClient` (PostgreSQL)
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI)
-- Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `SummaryModel` (requires **`[audio]`** extra)
+- Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)
 - `EnvConfigService` and `StructuredLogger`
