@@ -1,0 +1,12 @@
+---
+description: Keep MkDocs site in docs/ aligned with public API and behavior changes.
+globs:
+  - src/ianuacare/**/*.py
+alwaysApply: false
+---
+
+# MkDocs documentation
+
+When you change public exports under `src/ianuacare/`, behavior of `Pipeline` / `Orchestrator` / `DataParser`, or AI inference wiring, update the relevant pages under `docs/` (see `mkdocs.yml` `nav`) in the **same change set**.
+
+Before finishing: run `mkdocs build --strict` from the repo root and fix any warnings or broken links.

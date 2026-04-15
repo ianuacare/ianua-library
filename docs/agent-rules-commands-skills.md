@@ -40,6 +40,11 @@ Le regole sono file Markdown con frontmatter YAML. In Cursor, `alwaysApply: true
 - **Contenuto**: sanità dati sanitari/PII, segreti, validazione input, query parametrizzate, dipendenze.
 - **Come usarla**: in codice che tocca dati sensibili o integrazioni esterne, verifica logging, errori e confini di fiducia.
 
+### `mkdocs-documentation.mdc` (solo `src/ianuacare/**/*.py`, `alwaysApply: false`)
+
+- **Contenuto**: quando modifichi API pubblica o comportamento documentato, aggiorna le pagine in `docs/` (vedi `mkdocs.yml`) nello stesso changeset; verifica con `mkdocs build --strict`.
+- **Come usarla**: dopo refactor di `Pipeline` / `Orchestrator` / `DataParser` o export in `ianuacare`, controlla `docs/api-reference.md`, `docs/architecture.md`, ecc.
+
 ---
 
 ## Comandi (`.cursor/commands/` e `.claude/commands/`)
@@ -104,7 +109,7 @@ Nel repo esistono ancora directory (es. `backend-ts-expert/`, `devops-aws-expert
 
 | Tipo | Elementi nel repo |
 |------|-------------------|
-| **Regole** | `project-conventions`, `git-conventions`, `ci-pipeline`, `security-standards` |
+| **Regole** | `project-conventions`, `git-conventions`, `ci-pipeline`, `security-standards`, `mkdocs-documentation` |
 | **Comandi** | `build`, `debug`, `test`, `review`, `code-simplify`, `commit-files` (stessi 6 in `.cursor/commands` e `.claude/commands`) |
 | **Skill attive (`SKILL.md`)** | `backend-py-expert`, `code-simplification`, `debugging-and-error-recovery` |
 

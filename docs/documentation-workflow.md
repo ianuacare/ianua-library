@@ -49,7 +49,13 @@ Prefer stable, recognizable icons and keep the label text next to the icon for r
 
 ## Build and verify locally
 
-From repository root:
+From repository root, install the **`docs`** extra (pins MkDocs Material with the project):
+
+```bash
+pip install -e ".[docs]"
+```
+
+Or install only the theme:
 
 ```bash
 pip install mkdocs-material
@@ -61,11 +67,17 @@ Start local docs server:
 mkdocs serve
 ```
 
-Or generate static docs:
+Or generate static docs (use **`--strict`** so warnings fail the build, same as CI should):
 
 ```bash
-mkdocs build
+mkdocs build --strict
 ```
+
+## `mkdocs.yml` and navigation
+
+- Site config lives at **repository root**: `mkdocs.yml`.
+- Markdown sources live in **`docs/`**; the **nav** order and page titles are defined under `nav:` in `mkdocs.yml`.
+- When you add a new page, create `docs/<name>.md` and add an entry under `nav:` (and link it from `docs/index.md` if it is a major topic).
 
 ## Flowchart in documentation
 
@@ -78,18 +90,10 @@ flowchart TD
     C --> D[Storage]
 ```
 
-## Automation via project skill
-
-This repository includes a local skill in:
-
-- `.cursor/skills/docs-sync/SKILL.md`
-
-Use that skill whenever introducing new modules or changing existing ones; it enforces a docs update pass and a final consistency check between code and `docs/`.
-
 ## Cursor workspace rule
 
-The same requirement is enforced for agents via the always-on workspace rule:
+The same requirement is reinforced for agents via:
 
 - `.cursor/rules/mkdocs-documentation.mdc`
 
-Any change under `src/ianuacare/` that affects public API or documented behavior should include the corresponding `docs/` updates in the **same change set**.
+Any change under `src/ianuacare/` that affects public API or documented behavior should include the corresponding `docs/` updates in the **same change set**, and `mkdocs build --strict` should pass.

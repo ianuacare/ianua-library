@@ -1,7 +1,15 @@
 site_name: Ianuacare Library
 site_description: Documentation for the Ianuacare Python library.
-repo_name: ianua-library
+site_author: Ianua
+
+# Source repository (Material theme: repo link, "edit this page")
+repo_url: https://github.com/ianuacare/ianua-library
+repo_name: ianuacare/ianua-library
+edit_uri: edit/main/docs/
+
 docs_dir: docs
+strict: true
+
 theme:
   name: material
   features:
@@ -32,3 +40,4 @@ nav:
   - Preconfigurations: preconfigurations.md
   - Extending: extending.md
   - Documentation workflow: documentation-workflow.md
+  - Agent rules (Cursor / Claude): agent-rules-commands-skills.md

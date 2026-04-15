@@ -23,6 +23,7 @@ information (PHI) into logs.
 | [Preconfigurations](preconfigurations.md) | Ready-to-use adapters and stack factory |
 | [Extending](extending.md) | Custom models, storage, validation |
 | [Documentation workflow](documentation-workflow.md) | How and when to update docs with MkDocs |
+| [Agent rules (Cursor / Claude)](agent-rules-commands-skills.md) | Local rules, commands, and skills under `.cursor/` and `.claude/` |
 
 ## Repository layout
 
