@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import uuid
+from pathlib import Path
 from typing import Any
 
 from ianuacare.core.exceptions.errors import StorageError
@@ -20,6 +22,7 @@ class Writer:
     COL_PROCESSED = "processed_records"
     COL_RESULTS = "inference_results"
     COL_LOGS = "application_logs"
+    COL_AUDIO = "audio_records"
 
     def __init__(
         self,
@@ -149,6 +152,117 @@ class Writer:
         except Exception as exc:
             raise StorageError("Failed to delete record") from exc
 
+    def write_audio_upload_reference(
+        self,
+        *,
+        collection: str,
+        payload: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Persist audio metadata and return a presigned upload URL."""
+        try:
+            filename = str(payload.get("filename") or "").strip()
+            if not filename:
+                raise ValueError("filename is required")
+            ext = Path(filename).suffix.lower()
+            if ext not in {".wav", ".mp3"}:
+                raise ValueError("filename extension must be .wav or .mp3")
+
+            audio_id = str(payload.get("audio_id") or uuid.uuid4().hex)
+            request_id = str(payload.get("request_id") or payload.get("meta_request_id") or "")
+            seed = request_id if request_id else audio_id
+            object_key = f"{context.product}/{context.user.user_id}/audio/{seed}{ext}"
+
+            mime_type = str(payload.get("mime_type") or self._mime_from_ext(ext))
+            size_bytes = payload.get("size_bytes")
+            upload_url = self._generate_upload_url(
+                object_key=object_key,
+                mime_type=mime_type,
+                expires_in=int(payload.get("upload_url_expires_in") or 900),
+            )
+            record = {
+                "audio_id": audio_id,
+                "user_id": context.user.user_id,
+                "product": context.product,
+                "status": "pending_upload",
+                "filename": filename,
+                "mime_type": mime_type,
+                "size_bytes": size_bytes,
+                "bucket": self._bucket_name(),
+                "object_key": object_key,
+                "request_id": request_id or payload.get("meta_request_id"),
+            }
+            self._db.write(collection or self.COL_AUDIO, record)
+            return {
+                "audio_id": audio_id,
+                "bucket": record["bucket"],
+                "object_key": object_key,
+                "mime_type": mime_type,
+                "status": record["status"],
+                "upload_url": upload_url,
+                "upload_url_expires_in": int(payload.get("upload_url_expires_in") or 900),
+            }
+        except Exception as exc:
+            raise StorageError("Failed to prepare audio upload") from exc
+
+    def write_audio_direct_upload(
+        self,
+        *,
+        collection: str,
+        payload: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Upload audio bytes to object storage and persist metadata."""
+        try:
+            filename = str(payload.get("filename") or "").strip()
+            if not filename:
+                raise ValueError("filename is required")
+            ext = Path(filename).suffix.lower()
+            if ext not in {".wav", ".mp3"}:
+                raise ValueError("filename extension must be .wav or .mp3")
+
+            content = payload.get("content")
+            if isinstance(content, str):
+                body = content.encode()
+            elif isinstance(content, (bytes, bytearray)):
+                body = bytes(content)
+            else:
+                raise ValueError("content is required")
+            if not body:
+                raise ValueError("content is empty")
+
+            audio_id = str(payload.get("audio_id") or uuid.uuid4().hex)
+            request_id = str(payload.get("request_id") or payload.get("meta_request_id") or "")
+            seed = request_id if request_id else audio_id
+            object_key = f"{context.product}/{context.user.user_id}/audio/{seed}{ext}"
+            mime_type = str(payload.get("mime_type") or self._mime_from_ext(ext))
+
+            blob_ref = self._bucket.upload(object_key, body)
+            record = {
+                "audio_id": audio_id,
+                "user_id": context.user.user_id,
+                "product": context.product,
+                "status": "uploaded",
+                "filename": filename,
+                "mime_type": mime_type,
+                "size_bytes": len(body),
+                "bucket": self._bucket_name(),
+                "object_key": object_key,
+                "request_id": request_id or payload.get("meta_request_id"),
+                "blob": blob_ref,
+            }
+            self._db.write(collection or self.COL_AUDIO, record)
+            return {
+                "audio_id": audio_id,
+                "bucket": record["bucket"],
+                "object_key": object_key,
+                "mime_type": mime_type,
+                "size_bytes": record["size_bytes"],
+                "status": record["status"],
+            }
+        except Exception as exc:
+            raise StorageError("Failed to upload audio directly") from exc
+
     @staticmethod
     def _blob_key(
         context: RequestContext,
@@ -164,4 +278,18 @@ class Writer:
             return payload
         raw = payload if isinstance(payload, bytes) else json.dumps(payload, default=str).encode()
         return self._encryption.encrypt(raw)
+
+    def _generate_upload_url(self, *, object_key: str, mime_type: str, expires_in: int) -> str:
+        generator = getattr(self._bucket, "generate_presigned_upload_url", None)
+        if not callable(generator):
+            raise StorageError("Bucket client does not support presigned upload URLs")
+        return str(generator(object_key, mime_type=mime_type, expires_in=expires_in))
+
+    def _bucket_name(self) -> str:
+        name = getattr(self._bucket, "_bucket_name", None)
+        return str(name) if isinstance(name, str) and name else "unknown"
+
+    @staticmethod
+    def _mime_from_ext(ext: str) -> str:
+        return "audio/wav" if ext == ".wav" else "audio/mpeg"
 

@@ -34,6 +34,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Application integration flow: application-integration-flow.md
   - Audio transcription and diarization: audio-diarization.md
   - Architecture: architecture.md
   - API reference: api-reference.md

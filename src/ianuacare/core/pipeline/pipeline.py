@@ -133,6 +133,56 @@ class Pipeline:
         )
         return packet
 
+    def run_audio(
+        self,
+        operation: str,
+        input_data: Any,
+        context: RequestContext,
+    ) -> DataPacket:
+        """Execute audio upload/retrieval flow with DB + S3 references."""
+        packet = self._data_manager.collect(input_data, context)
+        self._audit.log_event(
+            "pipeline_audio_started",
+            context,
+            {"operation": operation},
+        )
+        self._validator.validate(packet)
+        payload = self._validator.validate_audio_payload(packet.validated_data, operation=operation)
+
+        if operation == "prepare_upload":
+            collection = self._require_text(payload.get("collection"), field="collection")
+            packet.processed_data = self._writer.write_audio_upload_reference(
+                collection=collection,
+                payload=payload,
+                context=context,
+            )
+        elif operation == "upload_direct":
+            collection = self._require_text(payload.get("collection"), field="collection")
+            packet.processed_data = self._writer.write_audio_direct_upload(
+                collection=collection,
+                payload=payload,
+                context=context,
+            )
+        elif operation == "retrieve":
+            collection = self._require_text(payload.get("collection"), field="collection")
+            lookup_field = self._require_text(payload.get("lookup_field"), field="lookup_field")
+            lookup_value = payload.get("lookup_value")
+            packet.processed_data = self._reader.read_audio(
+                collection=collection,
+                lookup_field=lookup_field,
+                lookup_value=lookup_value,
+                context=context,
+            )
+        else:
+            raise ValidationError(f"Unsupported audio operation: {operation}")
+
+        self._audit.log_event(
+            "pipeline_audio_completed",
+            context,
+            {"operation": operation},
+        )
+        return packet
+
     @staticmethod
     def _require_mapping(value: Any, *, field: str = "payload") -> dict[str, Any]:
         if not isinstance(value, dict):
