@@ -17,9 +17,34 @@ _WAV_HEADER_MARGIN = 4096
 class SpeechTranscriptionProvider(AIProvider):
     """Adapter for file-based ASR providers (for example OpenAI audio API)."""
 
-    def __init__(self, client: Any | None = None, model: str = "whisper-1") -> None:
-        self._client = client
+    def __init__(
+        self,
+        client: Any | None = None,
+        model: str = "whisper-1",
+        *,
+        provider: str = "openai",
+        api_key: str | None = None,
+    ) -> None:
+        self._client = client if client is not None else self._build_client(provider, api_key)
         self._model = model
+
+    @staticmethod
+    def _build_client(provider: str, api_key: str | None) -> Any | None:
+        selected = str(provider or "").strip().lower() or "openai"
+        if selected != "openai":
+            return None
+        if not isinstance(api_key, str) or not api_key.strip():
+            return None
+
+        try:
+            from openai import OpenAI
+        except Exception:
+            return None
+
+        try:
+            return OpenAI(api_key=api_key.strip())
+        except Exception:
+            return None
 
     @staticmethod
     def _max_samples_per_wav_chunk() -> int:
