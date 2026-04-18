@@ -172,15 +172,24 @@ Module path: `ianuacare.core.pipeline`
 
 Module path: `ianuacare.core.orchestration`
 
-### `DataParser`
+### `InputDataParser`
 
 - `parse(packet: DataPacket, *, model_key: str | None = None) -> DataPacket` — sets `parsed_data` from `validated_data`; when `model_key` is set, the default implementation maps inputs to the provider payload (for example `llm` → `{"prompt": "", "text": ...}`, `diarization` → `segments` plus optional `audio_path`, `num_speakers`, `language`, `response_format`). Override `_parse_impl(validated, *, model_key)` for custom parsing.
 
+### `OutputDataParser`
+
+- `parse(packet: DataPacket, *, model_key: str | None = None, schema: Mapping | None = None) -> DataPacket` — reads `inference_result`, runs model-specific post-processing (branching by `model_key`), and writes the normalized value to `processed_data`.
+- Branch `llm`: when `schema` is provided, validates required fields (`schema["required"]`) and top-level property types (`schema["properties"][name]["type"]`, supporting `object`, `array`, `string`, `integer`, `number`, `boolean`, `null`, and list-of-types for unions). When `schema is None`, only normalization is applied.
+- Branch `diarization`: only normalization (hook available for future post-processing).
+- Default branch: only normalization.
+- Normalization: `dict` results are copied; non-dict results are wrapped as `{"output": result}`.
+
 ### `Orchestrator`
 
-- `execute(packet, context) -> DataPacket` — select model, then parse with `model_key`, run inference, set `processed_data` and `inference_result`.
+- `execute(packet, context) -> DataPacket` — select model, parse input with `model_key`, run inference, then parse output (with optional JSON schema read from `context.metadata["output_schema"]`) and set `processed_data` and `inference_result`.
 - `_select_model(context, packet) -> str` — uses `context.metadata["model_key"]`, `packet.metadata["model_key"]`, `default_model_key`, or a single registered model.
-- Optional cache integration via `cache: CacheClient | None` and `cache_ttl_seconds`.
+- Constructor takes `input_parser: InputDataParser` and `output_parser: OutputDataParser` (separate stages around the model).
+- Optional cache integration via `cache: CacheClient | None` and `cache_ttl_seconds`; the output parser runs on both cache-hit and cache-miss paths so `processed_data` is always coherent with the schema.
 
 ## AI
 
@@ -217,7 +226,8 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 
 ## Breaking migration notes
 
-- `SummaryModel` was renamed to `LLMModel` (`ianuacare.ai.models.inference.LLM`). Update imports and `model_key` values (for example `"llm"` when using the default `DataParser` mapping).
+- `SummaryModel` was renamed to `LLMModel` (`ianuacare.ai.models.inference.LLM`). Update imports and `model_key` values (for example `"llm"` when using the default `InputDataParser` mapping).
+- The single `DataParser` was split into `InputDataParser` (ex-`DataParser`) and `OutputDataParser`. `Orchestrator(parser=...)` is replaced by `Orchestrator(input_parser=..., output_parser=...)`; the old `DataParser` is no longer exported.
 - Removed modules: `ianuacare.ai.base`, `ianuacare.ai.provider`, `ianuacare.ai.nlp`, `ianuacare.ai.audio`, `ianuacare.ai.cv`, `ianuacare.ai.tabular`.
 - Use `CallableProvider` instead of instantiating `AIProvider` directly.
 - Model outputs are normalized dictionaries stored in `DataPacket.inference_result`.

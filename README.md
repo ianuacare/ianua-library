@@ -66,7 +66,8 @@ from ianuacare import (
     CallableProvider,
     AuditService,
     DataManager,
-    DataParser,
+    InputDataParser,
+    OutputDataParser,
     DataValidator,
     InMemoryBucketClient,
     InMemoryDatabaseClient,
@@ -89,7 +90,7 @@ pipe = Pipeline(
     DataValidator(),
     writer,
     Reader(db),
-    Orchestrator(DataParser(), {"nlp": nlp}, default_model_key="nlp"),
+    Orchestrator(InputDataParser(), OutputDataParser(), {"nlp": nlp}, default_model_key="nlp"),
     AuditService(db),
 )
 ctx = RequestContext(User("u1", "clinician", ["pipeline:run"]), "ianuacare-demo")

@@ -3,7 +3,7 @@
 from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.audit.service import AuditService
 from ianuacare.core.orchestration.orchestrator import Orchestrator
-from ianuacare.core.orchestration.parser import DataParser
+from ianuacare.core.orchestration.parser import InputDataParser, OutputDataParser
 from ianuacare.core.pipeline.data_manager import DataManager
 from ianuacare.core.pipeline.pipeline import Pipeline
 from ianuacare.core.pipeline.validator import DataValidator
@@ -20,7 +20,8 @@ def test_pipeline_run_end_to_end(db, bucket, context) -> None:
     writer = Writer(db, bucket)
     reader = Reader(db)
     orch = Orchestrator(
-        DataParser(),
+        InputDataParser(),
+        OutputDataParser(),
         {"stub": EchoModel()},
         default_model_key="stub",
     )
@@ -43,7 +44,8 @@ def test_pipeline_run_model_explicit(db, bucket, context) -> None:
     writer = Writer(db, bucket)
     reader = Reader(db)
     orch = Orchestrator(
-        DataParser(),
+        InputDataParser(),
+        OutputDataParser(),
         {"stub": EchoModel()},
         default_model_key="stub",
     )
@@ -64,7 +66,8 @@ def test_pipeline_run_crud_write_and_read(db, bucket, context) -> None:
     writer = Writer(db, bucket)
     reader = Reader(db)
     orch = Orchestrator(
-        DataParser(),
+        InputDataParser(),
+        OutputDataParser(),
         {"stub": EchoModel()},
         default_model_key="stub",
     )

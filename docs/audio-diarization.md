@@ -60,7 +60,7 @@ for segment in result["segments"]:
 
 ## LLM text generation (summaries and similar)
 
-`LLMModel` passes payloads to the provider and normalizes output through `ModelOutNormalizer` (same `normalize_summary` path as before). When using `Pipeline` + default `DataParser`, register the model under `model_key` `"llm"` and supply `validated_data` with at least `text`; the parser sets `prompt` to an empty string for the application layer to override if needed.
+`LLMModel` passes payloads to the provider and normalizes output through `ModelOutNormalizer` (same `normalize_summary` path as before). When using `Pipeline` + default `InputDataParser`, register the model under `model_key` `"llm"` and supply `validated_data` with at least `text`; the input parser sets `prompt` to an empty string for the application layer to override if needed. To enforce an output contract, pass a JSON schema via `context.metadata["output_schema"]`: the `OutputDataParser` will check required fields and top-level property types before normalization.
 
 ```python
 from ianuacare import CallableProvider, ModelOutNormalizer, LLMModel

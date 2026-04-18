@@ -4,7 +4,7 @@ from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
 from ianuacare.core.models.user import User
-from ianuacare.core.orchestration import DataParser, Orchestrator
+from ianuacare.core.orchestration import InputDataParser, Orchestrator, OutputDataParser
 from ianuacare.infrastructure.cache import InMemoryCacheClient
 
 
@@ -20,7 +20,8 @@ class CounterModel(BaseAIModel):
 def test_orchestrator_uses_cache() -> None:
     model = CounterModel()
     orch = Orchestrator(
-        DataParser(),
+        InputDataParser(),
+        OutputDataParser(),
         {"m": model},
         default_model_key="m",
         cache=InMemoryCacheClient(),

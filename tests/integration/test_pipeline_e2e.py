@@ -5,7 +5,7 @@ from ianuacare.core.audit.service import AuditService
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.user import User
 from ianuacare.core.orchestration.orchestrator import Orchestrator
-from ianuacare.core.orchestration.parser import DataParser
+from ianuacare.core.orchestration.parser import InputDataParser, OutputDataParser
 from ianuacare.core.pipeline.data_manager import DataManager
 from ianuacare.core.pipeline.pipeline import Pipeline
 from ianuacare.core.pipeline.validator import DataValidator
@@ -25,7 +25,8 @@ def test_full_pipeline_with_in_memory_infra() -> None:
     bucket = InMemoryBucketClient()
     writer = Writer(db, bucket)
     orch = Orchestrator(
-        DataParser(),
+        InputDataParser(),
+        OutputDataParser(),
         {"nlp": IdentityModel()},
         default_model_key="nlp",
     )

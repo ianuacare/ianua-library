@@ -9,7 +9,7 @@ from ianuacare.core.audit import AuditService
 from ianuacare.core.auth import AuthService
 from ianuacare.core.config.env import EnvConfigService
 from ianuacare.core.logging import StructuredLogger
-from ianuacare.core.orchestration import DataParser, Orchestrator
+from ianuacare.core.orchestration import InputDataParser, Orchestrator, OutputDataParser
 from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
 from ianuacare.infrastructure.cache import CacheClient
 from ianuacare.infrastructure.encryption import EncryptionService
@@ -45,7 +45,8 @@ def create_stack(
     auth_service = AuthService(user_repository=auth_repository)  # type: ignore[arg-type]
     writer = Writer(database, bucket, encryption=encryption)
     orchestrator = Orchestrator(
-        parser=DataParser(),
+        input_parser=InputDataParser(),
+        output_parser=OutputDataParser(),
         models=models,
         default_model_key=default_model_key,
         cache=cache,

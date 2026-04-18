@@ -43,7 +43,7 @@ Le regole sono file Markdown con frontmatter YAML. In Cursor, `alwaysApply: true
 ### `mkdocs-documentation.mdc` (solo `src/ianuacare/**/*.py`, `alwaysApply: false`)
 
 - **Contenuto**: quando modifichi API pubblica o comportamento documentato, aggiorna le pagine in `docs/` (vedi `mkdocs.yml`) nello stesso changeset; verifica con `mkdocs build --strict`.
-- **Come usarla**: dopo refactor di `Pipeline` / `Orchestrator` / `DataParser` o export in `ianuacare`, controlla `docs/api-reference.md`, `docs/architecture.md`, ecc.
+- **Come usarla**: dopo refactor di `Pipeline` / `Orchestrator` / `InputDataParser` / `OutputDataParser` o export in `ianuacare`, controlla `docs/api-reference.md`, `docs/architecture.md`, ecc.
 
 ---
 

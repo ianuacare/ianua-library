@@ -7,7 +7,7 @@ Subclass `BaseAIModel` and register instances in `Orchestrator`:
 ```python
 from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.orchestration.orchestrator import Orchestrator
-from ianuacare.core.orchestration.parser import DataParser
+from ianuacare.core.orchestration.parser import InputDataParser, OutputDataParser
 
 class VisionModel(BaseAIModel):
     def run(self, payload: object) -> dict:
@@ -15,7 +15,8 @@ class VisionModel(BaseAIModel):
         return {"labels": []}
 
 orch = Orchestrator(
-    DataParser(),
+    InputDataParser(),
+    OutputDataParser(),
     {"vision": VisionModel(), "nlp": nlp_model},
     default_model_key="nlp",
 )
@@ -32,13 +33,37 @@ Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(prov
 
 ## Custom parsing
 
-Subclass `DataParser` (`ianuacare.core.orchestration`) and override `_parse_impl` for schema validation, FHIR normalization, etc. The default `Orchestrator` passes `model_key` so you can branch per registered model:
+The orchestration stage wires two parsers:
+
+- `InputDataParser` — transforms `validated_data` into the provider payload (`parsed_data`).
+- `OutputDataParser` — transforms the model's `inference_result` into `processed_data`, runs optional JSON-schema checks for `llm`, and applies the final normalization.
+
+Subclass `InputDataParser` (`ianuacare.core.orchestration`) and override `_parse_impl` for schema validation, FHIR normalization, etc. The default `Orchestrator` passes `model_key` so you can branch per registered model:
 
 ```python
-class FhirParser(DataParser):
+class FhirParser(InputDataParser):
     def _parse_impl(self, validated: object, *, model_key: str | None = None) -> dict:
         # return a normalized structure
         return {"resource": validated}
+```
+
+Subclass `OutputDataParser` to run extra post-inference checks or transformations. For the built-in `llm` branch, pass a JSON schema via `context.metadata["output_schema"]` (supports `required` and top-level `properties.<name>.type`) and the parser will validate coherence before normalization; when no schema is provided, the `llm` branch only normalizes:
+
+```python
+ctx = RequestContext(
+    user,
+    "my-product",
+    metadata={
+        "model_key": "llm",
+        "output_schema": {
+            "required": ["summary"],
+            "properties": {
+                "summary": {"type": "string"},
+                "score": {"type": "number"},
+            },
+        },
+    },
+)
 ```
 
 ## Custom validation

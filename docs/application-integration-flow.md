@@ -63,9 +63,10 @@ from ianuacare import (
     AuthService,
     CognitoUserRepository,
     DataManager,
-    DataParser,
     DataValidator,
+    InputDataParser,
     Orchestrator,
+    OutputDataParser,
     Pipeline,
     Reader,
     Writer,
@@ -81,7 +82,8 @@ pipeline = Pipeline(
     writer=Writer(db, bucket),
     reader=Reader(db),
     orchestrator=Orchestrator(
-        parser=DataParser(),
+        input_parser=InputDataParser(),
+        output_parser=OutputDataParser(),
         models={"llm": llm, "diarization": diarization, "nlp": nlp},
         default_model_key="nlp",
     ),
@@ -170,10 +172,11 @@ sequenceDiagram
 
     Pipeline->>Orchestrator: execute(packet, context)
     Note over Orchestrator: Legge model_key dal contesto
-    Note over Orchestrator: Prepara payload (DataParser)
+    Note over Orchestrator: Prepara payload (InputDataParser)
     Orchestrator->>Model: run(payload)
     Model-->>Orchestrator: risultato
-    Orchestrator-->>Pipeline: inference_result
+    Note over Orchestrator: Valida/normalizza (OutputDataParser)
+    Orchestrator-->>Pipeline: inference_result + processed_data
 
     Pipeline->>Storage: Salva risultato (artefatti #2 e #3)
     Pipeline-->>App: DataPacket
