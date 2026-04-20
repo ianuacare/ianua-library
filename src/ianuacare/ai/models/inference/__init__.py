@@ -8,6 +8,7 @@ from ianuacare.ai.models.inference.emotion_clusterer import EmotionClusterer
 from ianuacare.ai.models.inference.embedder import SpeakerEmbedder
 from ianuacare.ai.models.inference.nlp import NLPModel
 from ianuacare.ai.models.inference.text_embedder import TextEmbedder
+from ianuacare.ai.models.inference.topic_clusterer import TopicClusterer
 from ianuacare.ai.models.inference.transcription import Transcription
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "SpeakerClusterer",
     "SpeakerEmbedder",
     "TextEmbedder",
+    "TopicClusterer",
     "Transcription",
 ]
