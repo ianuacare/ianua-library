@@ -19,8 +19,9 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 ### :material-database: Storage
 
 - :simple-postgresql: `PostgresDatabaseClient` (`ianuacare.infrastructure.storage`) for relational persistence with dynamic columns (safe identifiers via `psycopg.sql`).
+- :material-database-search: `QdrantDatabaseClient` (`ianuacare.infrastructure.storage`) for vector persistence/search (optional `qdrant` extra).
 - :fontawesome-brands-aws: `S3BucketClient` (`ianuacare.infrastructure.storage`) for blob/object storage.
-- `Reader` and `Writer` (`ianuacare.infrastructure.storage`) for CRUD reads/writes and pipeline artifact persistence over `DatabaseClient`.
+- `Reader` and `Writer` (`ianuacare.infrastructure.storage`) for CRUD reads/writes, vector reads/writes, and pipeline artifact persistence over `DatabaseClient`/`VectorDatabaseClient`.
 
 ### :material-robot-outline: AI provider
 
@@ -67,6 +68,7 @@ stack = create_stack(
     bucket=InMemoryBucketClient(),
     models={"nlp": model},
     default_model_key="nlp",
+    vector_database=None,  # pass InMemoryVectorDatabaseClient or QdrantDatabaseClient when needed
 )
 
 # stack.pipeline, stack.auth_service, stack.writer, stack.orchestrator

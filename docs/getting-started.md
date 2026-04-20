@@ -18,6 +18,12 @@ pip install -e ".[dev]"
 pip install -e ".[dev,aws]"
 ```
 
+### Optional: Qdrant vector search
+
+```bash
+pip install -e ".[dev,qdrant]"
+```
+
 ## Minimal example
 
 ```python
@@ -125,6 +131,67 @@ created = pipe.run_crud(
 )
 print(created.processed_data)
 ```
+
+## Vector flow example (`run_vector`)
+
+`Pipeline.run_vector(...)` supports `upsert`, `search`, `delete` over a vector backend.
+
+```python
+from ianuacare import InMemoryVectorDatabaseClient, TextEmbedder
+
+vector_db = InMemoryVectorDatabaseClient()
+writer = Writer(db, InMemoryBucketClient(), vector_client=vector_db)
+reader = Reader(db, vector_client=vector_db)
+embedder = TextEmbedder(provider=CallableProvider(lambda _, batch: [[1.0, 0.0] for _ in batch]))
+
+pipe = Pipeline(
+    DataManager(),
+    DataValidator(),
+    writer,
+    reader,
+    Orchestrator(
+        InputDataParser(),
+        OutputDataParser(),
+        {"text_embedder": embedder},
+        default_model_key="text_embedder",
+    ),
+    AuditService(db),
+)
+
+# upsert one artefact at text level
+pipe.run_vector(
+    "upsert",
+    {
+        "collection": "clinical_notes",
+        "vector_field": "text",
+        "artefatti": [{
+            "id_artefatto_trascrizione": "tr-1",
+            "text": "diabete tipo 2",
+            "text_vect": [1.0, 0.0],
+            "sentence": [],
+            "sentence_vect": [],
+            "words": [],
+            "words_vect": [],
+        }],
+    },
+    ctx,
+)
+
+# search by prompt (embedded via Orchestrator.embed_text)
+hits = pipe.run_vector(
+    "search",
+    {
+        "collection": "clinical_notes",
+        "prompt": "diabete",
+        "top_k": 5,
+        "filters": {"level": "text"},
+    },
+    ctx,
+).processed_data
+print(hits)
+```
+
+For `QdrantDatabaseClient`, `upsert(...)` auto-calls `ensure_collection(...)` when the collection is missing (distance default: `Cosine`).
 
 ### Cognito: password login + token authentication
 

@@ -16,6 +16,7 @@ See the [`docs/`](docs/) folder:
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
 - [Audio transcription and diarization](docs/audio-diarization.md) (new `ianuacare.ai.models.inference` flow, optional `[audio]` extra)
+- [Application integration flow](docs/application-integration-flow.md) (includes CRUD, audio, and vector DB flows)
 - [API reference](docs/api-reference.md)
 - [Preconfigurations](docs/preconfigurations.md)
 - [Extending](docs/extending.md)
@@ -40,6 +41,7 @@ The library now includes production-oriented adapters and a generic stack factor
 
 - `CognitoUserRepository` (AWS Cognito)
 - `PostgresDatabaseClient` (PostgreSQL)
+- `QdrantDatabaseClient` + `VectorDatabaseClient` (vector search)
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI)
 - Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
@@ -51,7 +53,7 @@ The library now includes production-oriented adapters and a generic stack factor
 Install optional dependencies as needed:
 
 ```bash
-pip install -e ".[aws,postgres,together,redis,audio]"
+pip install -e ".[aws,postgres,qdrant,together,redis,audio]"
 ```
 
 ## Documentation policy

@@ -2,10 +2,11 @@
 
 ## Design overview
 
-Ianuacare now exposes two flows over the same `DataPacket` entrypoint:
+Ianuacare now exposes three flows over the same `DataPacket` entrypoint:
 
 - **Model flow**: `collect -> validate -> persist raw -> orchestrate (parse + model) -> persist processed -> persist result`
 - **CRUD flow**: `collect -> validate -> writer (create/update/delete)` or `collect -> validate -> reader (read_one/read_many)`
+- **Vector flow**: `collect -> validate -> writer/reader vector operations (upsert/search/delete)` with optional prompt embedding via `Orchestrator.embed_text`
 
 Both flows produce audit events; CRUD outputs are written to `packet.processed_data`.
 
@@ -26,6 +27,15 @@ flowchart LR
     validateStep -->|crud_read| crudRead[Reader.read_one_many]
     crudRead --> crudResult
 
+    validateStep -->|vector_upsert| vecUpsert[Writer.write_vector_upsert]
+    vecUpsert --> vecResult["DataPacket (processed_data)"]
+
+    validateStep -->|vector_search| vecSearch[Reader.read_vector_search]
+    vecSearch --> vecResult
+
+    validateStep -->|vector_delete| vecDelete[Writer.write_vector_delete]
+    vecDelete --> vecResult
+
     subgraph audit [AuditService]
         logEvent[log_event]
     end
@@ -35,6 +45,9 @@ flowchart LR
     writeResult -.-> logEvent
     crudWrite -.-> logEvent
     crudRead -.-> logEvent
+    vecUpsert -.-> logEvent
+    vecSearch -.-> logEvent
+    vecDelete -.-> logEvent
 ```
 
 ## Layering (3 layers)
@@ -66,7 +79,7 @@ src/ianuacare/
 
 ## Relationships (from the class diagram)
 
-- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`. `Reader` holds `DatabaseClient`. `Orchestrator` holds `InputDataParser`, `OutputDataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`; `Transcription`/`LLMModel` hold `ModelOutNormalizer`; `DiarizationModel` composes transcription + parsers + embedder + clusterer.
+- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`, optional `VectorDatabaseClient`. `Reader` holds `DatabaseClient`, optional `BucketClient`, optional `VectorDatabaseClient`. `Orchestrator` holds `InputDataParser`, `OutputDataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`; `Transcription`/`LLMModel` hold `ModelOutNormalizer`; `DiarizationModel` composes transcription + parsers + embedder + clusterer.
 - **Dependency**: most services accept `DataPacket` and `RequestContext` per call (no long-lived coupling).
 - **Inheritance**: `NLPModel` extends `BaseAIModel`; concrete errors extend `IanuacareError`.
 
@@ -81,3 +94,5 @@ src/ianuacare/
 `InMemoryDatabaseClient` and `InMemoryBucketClient` are provided for **tests and local development**. Production code should use adapters that talk to PostgreSQL, object storage, etc., implementing the same protocols.
 
 `PostgresDatabaseClient` persists CRUD records using relational columns and safe SQL composition (`psycopg.sql.Identifier` for table/column names), while allowing JSONB only for variable-shaped values when needed.
+
+For vector search, `InMemoryVectorDatabaseClient` is available for local/testing, while `QdrantDatabaseClient` implements the same protocol for production. `upsert(...)` auto-runs `ensure_collection(...)` when the target collection does not exist (default distance: `Cosine`).

@@ -167,6 +167,11 @@ Module path: `ianuacare.core.pipeline`
   - write ops (`create`, `update`, `delete`) use `Writer`
   - read ops (`read_one`, `read_many`) use `Reader`
   - result is set in `packet.processed_data` consistently.
+- `run_vector(operation, input_data, context: RequestContext) -> DataPacket` — vector flow:
+  - write ops: `upsert` / `delete` use `Writer`
+  - read op: `search` uses `Reader`
+  - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via `Orchestrator.embed_text`)
+  - `filters.level` is required (`text`, `sentence`, `words`)
 
 ## Orchestration
 
@@ -181,6 +186,7 @@ Module path: `ianuacare.core.orchestration`
 - `parse(packet: DataPacket, *, model_key: str | None = None, schema: Mapping | None = None) -> DataPacket` — reads `inference_result`, runs model-specific post-processing (branching by `model_key`), and writes the normalized value to `processed_data`.
 - Branch `llm`: when `schema` is provided, validates required fields (`schema["required"]`) and top-level property types (`schema["properties"][name]["type"]`, supporting `object`, `array`, `string`, `integer`, `number`, `boolean`, `null`, and list-of-types for unions). When `schema is None`, only normalization is applied.
 - Branch `diarization`: only normalization (hook available for future post-processing).
+- Branch `text_embedder`: wraps output as `{"artefatti": [ ... ]}`.
 - Default branch: only normalization.
 - Normalization: `dict` results are copied; non-dict results are wrapped as `{"output": result}`.
 
@@ -190,6 +196,7 @@ Module path: `ianuacare.core.orchestration`
 - `_select_model(context, packet) -> str` — uses `context.metadata["model_key"]`, `packet.metadata["model_key"]`, `default_model_key`, or a single registered model.
 - Constructor takes `input_parser: InputDataParser` and `output_parser: OutputDataParser` (separate stages around the model).
 - Optional cache integration via `cache: CacheClient | None` and `cache_ttl_seconds`; the output parser runs on both cache-hit and cache-miss paths so `processed_data` is always coherent with the schema.
+- `embed_text(text, context) -> list[float]` — helper used by vector search to produce a query vector through the registered `text_embedder` model.
 
 ## AI
 
@@ -201,6 +208,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
 - `LLMModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
+- `TextEmbedder.run(payload) -> dict` — returns text/sentence/word vectors in a normalized artefact shape.
 - `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
 - `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
 - `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
@@ -246,12 +254,18 @@ Module path: `ianuacare.infrastructure.storage`
   - `delete(collection, *, key, value) -> dict`
   - legacy compatibility: `write(...)`, `fetch_all(...)`
 - `BucketClient`: `upload(key, content) -> dict`, `download(key) -> Any`
+- `VectorDatabaseClient`:
+  - `ensure_collection(name, *, vector_size, distance="Cosine") -> dict`
+  - `upsert(collection, points) -> dict`
+  - `search(collection, *, vector, top_k=10, filters=None, score_threshold=None) -> list[dict]`
+  - `delete(collection, *, ids=None, filters=None) -> dict`
 
 ### Implementations
 
-- `InMemoryDatabaseClient`, `InMemoryBucketClient`
+- `InMemoryDatabaseClient`, `InMemoryBucketClient`, `InMemoryVectorDatabaseClient`
 - `PostgresDatabaseClient` (optional dependency: `psycopg`) using relational columns with safe identifiers (`psycopg.sql`)
 - `S3BucketClient` (optional dependency: `boto3`)
+- `QdrantDatabaseClient` (optional dependency: `qdrant-client`)
 
 ### `Writer`
 
@@ -264,6 +278,10 @@ Module path: `ianuacare.infrastructure.storage`
   - `write_update(collection, *, lookup_field, lookup_value, updates, context) -> dict`
   - `write_delete(collection, *, lookup_field, lookup_value, context) -> dict`
 - Optional `encryption: EncryptionService | None` at constructor time.
+- Optional `vector_client: VectorDatabaseClient | None` at constructor time.
+- Vector write methods:
+  - `write_vector_upsert(collection, artefatti, *, vector_field, context) -> dict`
+  - `write_vector_delete(collection, *, ids=None, filters=None, context) -> dict`
 
 Raises `StorageError` on failure.
 
@@ -271,6 +289,8 @@ Raises `StorageError` on failure.
 
 - `read_one(collection, *, lookup_field, lookup_value, context) -> dict | None`
 - `read_many(collection, *, filters, context) -> list[dict]`
+- `read_vector_search(collection, *, vector, top_k=10, filters, score_threshold=None, context) -> list[dict]`
+  - requires `filters.level` (`text`, `sentence`, `words`)
 
 Reads through the configured `DatabaseClient`; raises `StorageError` on failure.
 
@@ -312,3 +332,4 @@ Module path: `ianuacare.presets`
 ### `create_stack(...)`
 
 - Factory that wires `AuthService`, `Writer`, `Reader`, `Orchestrator`, and `Pipeline` from injected adapters.
+- Accepts optional `vector_database: VectorDatabaseClient | None` and injects it into both `Writer` and `Reader`.

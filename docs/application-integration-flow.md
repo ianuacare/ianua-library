@@ -39,6 +39,7 @@ from ianuacare import (
     ModelOutNormalizer,
     NLPModel,
     SpeechTranscriptionProvider,
+    TextEmbedder,
     Transcription,
 )
 
@@ -53,6 +54,9 @@ diarization = DiarizationModel(transcription=transcription)
 
 # NLP generico
 nlp = NLPModel(CallableProvider(), "clinical-nlp-v1")
+
+# Text embedder (vector search)
+text_embedder = TextEmbedder(CallableProvider(), "text-embedding-v1")
 ```
 
 ### Pipeline e autenticazione (il collante)
@@ -69,6 +73,7 @@ from ianuacare import (
     OutputDataParser,
     Pipeline,
     Reader,
+    InMemoryVectorDatabaseClient,
     Writer,
 )
 
@@ -76,15 +81,22 @@ auth_service = AuthService(
     user_repository=CognitoUserRepository("eu-west-1", "pool-id", "client-id")
 )
 
+vector_db = InMemoryVectorDatabaseClient()
+
 pipeline = Pipeline(
     data_manager=DataManager(),
     validator=DataValidator(),
-    writer=Writer(db, bucket),
-    reader=Reader(db),
+    writer=Writer(db, bucket, vector_client=vector_db),
+    reader=Reader(db, vector_client=vector_db),
     orchestrator=Orchestrator(
         input_parser=InputDataParser(),
         output_parser=OutputDataParser(),
-        models={"llm": llm, "diarization": diarization, "nlp": nlp},
+        models={
+            "llm": llm,
+            "diarization": diarization,
+            "nlp": nlp,
+            "text_embedder": text_embedder,
+        },
         default_model_key="nlp",
     ),
     audit_service=AuditService(db),
@@ -381,7 +393,54 @@ print(packet.processed_data["download_url"])
 
 ---
 
-## 6 — Gestione errori
+## 6 — Vector DB: `pipeline.run_vector(...)`
+
+Per scrivere/cercare/cancellare embeddings nel DB vettoriale l'app usa `pipeline.run_vector(operation, input_data, context)`.
+
+| `operation` | Campi richiesti in `input_data` | Output |
+|---|---|---|
+| `"upsert"` | `collection`, `artefatti`, `vector_field` (`text`/`sentence`/`words`) | conteggio upsert |
+| `"search"` | `collection`, `filters.level`, `vector` **oppure** `prompt`, `top_k` opzionale | lista hit |
+| `"delete"` | `collection`, `ids` **oppure** `filters` | conteggio delete |
+
+### Esempio: upsert
+
+```python
+packet = pipeline.run_vector(
+    "upsert",
+    {
+        "collection": "clinical_notes",
+        "vector_field": "sentence",
+        "artefatti": artefatti,
+    },
+    context,
+)
+print(packet.processed_data)
+```
+
+### Esempio: search by prompt
+
+```python
+packet = pipeline.run_vector(
+    "search",
+    {
+        "collection": "clinical_notes",
+        "prompt": "diabete tipo 2",
+        "top_k": 5,
+        "filters": {"level": "sentence"},
+    },
+    context,
+)
+print(packet.processed_data)
+```
+
+!!! note "Creazione collection"
+    Con `QdrantDatabaseClient`, `upsert(...)` esegue automaticamente `ensure_collection(...)`
+    se la collection non esiste, usando `distance="Cosine"` e `vector_size` derivata dal primo vettore.
+
+---
+
+## 7 — Gestione errori
 
 La libreria alza eccezioni tipizzate che l'app deve catturare nel boundary
 HTTP/API e mappare a codici di stato:
@@ -435,6 +494,8 @@ flowchart LR
     → packet.processed_data"]
     Choice -->|"Audio S3"| RunAudio["run_audio(operation, data, context)
     → packet.processed_data"]
+    Choice -->|"Vector DB"| RunVector["run_vector(operation, data, context)
+    → packet.processed_data"]
 ```
 
 | Step | L'app fa | La libreria fa |
@@ -445,4 +506,5 @@ flowchart LR
 | **Inferenza** | Chiama `run_model(input_data, context)` | Valida, salva, seleziona modello, parsa, inferisce, salva risultato |
 | **CRUD** | Chiama `run_crud(op, data, context)` | Valida e esegue l'operazione su DB |
 | **Audio S3** | Chiama `run_audio(op, data, context)` | Valida payload audio, salva metadata DB, genera URL presigned upload/download |
+| **Vector DB** | Chiama `run_vector(op, data, context)` | Valida payload vector, upsert/search/delete su vector client |
 | **Errori** | Cattura eccezioni e mappa a HTTP status | Alza eccezioni tipizzate |
