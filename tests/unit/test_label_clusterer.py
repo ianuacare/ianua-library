@@ -1,4 +1,4 @@
-"""Tests for EmotionClusterer."""
+"""Tests for LabelClusterer."""
 
 from __future__ import annotations
 
@@ -6,15 +6,18 @@ from typing import Any
 
 import pytest
 
-from ianuacare.ai.models.inference.emotion_clusterer import (
-    EMOTION_CLUSTERS,
-    EmotionClusterer,
-)
+from ianuacare.ai.models.inference.label_clusterer import LabelClusterer
 from ianuacare.core.exceptions.errors import ValidationError
+
+LABEL_CLUSTERS = {
+    "cluster_a": ["tristezza", "vuoto", "disperazione"],
+    "cluster_b": ["ansia", "paura", "preoccupazione"],
+    "cluster_c": ["gioia", "sollievo", "speranza"],
+}
 
 
 class _FakeTextEmbedder:
-    """Return deterministic sentence embeddings for emotion anchors."""
+    """Return deterministic sentence embeddings for label anchors."""
 
     def run(self, payload: Any) -> dict[str, Any]:
         assert isinstance(payload, dict)
@@ -28,23 +31,24 @@ class _FakeTextEmbedder:
         return {"sentence_vect": vectors}
 
 
-def test_run_clusters_and_maps_emotions() -> None:
-    model = EmotionClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
+def test_run_clusters_and_maps_labels() -> None:
+    model = LabelClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
     payload = {
         "vectors": [
             [0.0, 0.1, 0.0],
             [0.1, 0.0, 0.1],
             [5.0, 5.1, 5.2],
             [5.2, 5.0, 5.1],
-        ]
+        ],
+        "label_clusters": LABEL_CLUSTERS,
     }
 
     result = model.run(payload)
 
     assert len(result["labels"]) == 4
-    assert len(result["emotions"]) == 4
-    assert len(result["cluster_to_emotion"]) == min(4, len(EMOTION_CLUSTERS))
-    assert all(emotion in EMOTION_CLUSTERS for emotion in result["emotions"])
+    assert len(result["assigned_labels"]) == 4
+    assert len(result["cluster_to_label"]) == min(4, len(LABEL_CLUSTERS))
+    assert all(item in LABEL_CLUSTERS for item in result["assigned_labels"])
     assert len(result["projected_vectors"]) == 4
     assert len(result["projected_vectors"][0]) == 2
     assert 1 <= len(result["explained_variance_ratio"]) <= 2
@@ -57,11 +61,13 @@ def test_run_clusters_and_maps_emotions() -> None:
         {},
         {"vectors": []},
         {"vectors": [1, 2, 3]},
-        {"vectors": [[1.0, 2.0], [1.0]]},
-        {"vectors": [[1.0, "x"]]},
+        {"vectors": [[1.0, 2.0], [1.0]], "label_clusters": LABEL_CLUSTERS},
+        {"vectors": [[1.0, "x"]], "label_clusters": LABEL_CLUSTERS},
+        {"vectors": [[1.0, 2.0]], "label_clusters": {}},
+        {"vectors": [[1.0, 2.0]], "label_clusters": {"x": []}},
     ],
 )
 def test_run_rejects_invalid_payload(payload: Any) -> None:
-    model = EmotionClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
+    model = LabelClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
     with pytest.raises(ValidationError):
         model.run(payload)

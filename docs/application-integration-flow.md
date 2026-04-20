@@ -35,13 +35,13 @@ L'app usera' quella chiave per scegliere quale modello invocare.
 from ianuacare import (
     CallableProvider,
     DiarizationModel,
-    EmotionClusterer,
+    LabelClusterer,
     LLMModel,
     ModelOutNormalizer,
     NLPModel,
+    RankedLabelClusterer,
     SpeechTranscriptionProvider,
     TextEmbedder,
-    TopicClusterer,
     Transcription,
 )
 
@@ -60,9 +60,9 @@ nlp = NLPModel(CallableProvider(), "clinical-nlp-v1")
 # Text embedder (vector search)
 text_embedder = TextEmbedder(CallableProvider(), "text-embedding-v1")
 
-# Emotion + topic clustering (embedding analytics)
-emotion_clusterer = EmotionClusterer(text_embedder=text_embedder)
-topic_clusterer = TopicClusterer(text_embedder=text_embedder)
+# Generic label clustering (embedding analytics)
+label_clusterer = LabelClusterer(text_embedder=text_embedder)
+ranked_label_clusterer = RankedLabelClusterer(text_embedder=text_embedder)
 ```
 
 ### Pipeline e autenticazione (il collante)
@@ -102,8 +102,8 @@ pipeline = Pipeline(
             "diarization": diarization,
             "nlp": nlp,
             "text_embedder": text_embedder,
-            "emotion_clusterer": emotion_clusterer,
-            "topic_clusterer": topic_clusterer,
+            "label_clusterer": label_clusterer,
+            "ranked_label_clusterer": ranked_label_clusterer,
         },
         default_model_key="nlp",
     ),
@@ -208,8 +208,8 @@ sequenceDiagram
 |---|---|---|
 | `"llm"` | `{"text": "Testo da elaborare..."}` | `{"text": "...", "key_points": [...]}` |
 | `"diarization"` | `{"audio_path": "/path/file.wav", "num_speakers": 2, "language": "it"}` | `{"raw_transcription": "...", "segments": [...], "speakers": [...]}` |
-| `"emotion_clusterer"` | `{"vectors": [[...], [...], ...]}` | `{"labels": [...], "emotions": [...], "cluster_to_emotion": {...}, "projected_vectors": [...], "explained_variance_ratio": [...]}` |
-| `"topic_clusterer"` | `{"vectors": [[...], ...], "texts": ["...", ...], "num_clusters": 8}` | `{"labels": [...], "topics": [...], "cluster_to_topic": {...}, "ranked_clusters": [{"label": "...", "count": 0, "percentage": 0.0, "examples": [...], "keywords": [...]}]}` |
+| `"label_clusterer"` | `{"vectors": [[...], [...], ...], "label_clusters": {"my_label": ["anchor1", "anchor2"]}}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "projected_vectors": [...], "explained_variance_ratio": [...]}` |
+| `"ranked_label_clusterer"` | `{"vectors": [[...], ...], "texts": ["...", ...], "label_clusters": {"my_label": ["anchor1"]}, "num_clusters": 8}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "ranked_clusters": [{"label": "...", "count": 0, "percentage": 0.0, "examples": [...], "keywords": [...]}]}` |
 | `"nlp"` (o altro) | Qualsiasi dizionario | Dipende dal provider configurato |
 
 !!! note "Cosa succede se non passi `model_key`"
