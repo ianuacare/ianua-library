@@ -30,7 +30,7 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 ### :material-microphone: Speech (transcription / diarization / transcript summary)
 
 - Modules **`ianuacare.ai.models.inference`**, **`ianuacare.ai.providers`**, **`ianuacare.ai.models.normalizer`** (optional **`audio`** extra: `pip install "ianuacare[audio]"`).
-- Main classes: `Transcription`, `DiarizationModel`, `LLMModel`, `SpeechTranscriptionProvider`, `ModelOutNormalizer`.
+- Main classes: `Transcription`, `DiarizationModel`, `LLMModel`, `TextEmbedder`, `EmotionClusterer`, `TopicClusterer`, `SpeechTranscriptionProvider`, `ModelOutNormalizer`.
 - See [Audio transcription and diarization](audio-diarization.md) for usage; apps wire provider + normalizer, while models stay vendor-agnostic.
 
 ### :material-lightning-bolt-circle: Cache and encryption

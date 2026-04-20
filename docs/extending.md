@@ -31,6 +31,8 @@ Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(prov
 
 `LLMModel` also uses the same provider + normalizer pattern (`infer` + normalize).
 
+For embedding analytics, `EmotionClusterer` and `TopicClusterer` consume precomputed vectors and use `TextEmbedder` internally to build anchor prototypes for label mapping (emotion/topic). Register them in `Orchestrator` with dedicated model keys (for example `"emotion_clusterer"` and `"topic_clusterer"`).
+
 ## Custom parsing
 
 The orchestration stage wires two parsers:

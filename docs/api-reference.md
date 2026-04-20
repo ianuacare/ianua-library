@@ -212,6 +212,8 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
 - `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
 - `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
+- `EmotionClusterer.run(payload) -> dict` — clusters embedding vectors in original space and maps each cluster to an emotion label using `TextEmbedder` anchor prototypes (`EMOTION_CLUSTERS`). Returns `labels`, `emotions`, `cluster_to_emotion`, and PCA-only visualization fields (`projected_vectors`, `explained_variance_ratio`).
+- `TopicClusterer.run(payload) -> dict` — clusters embedding vectors in original space and maps each cluster to a thematic topic label using `TextEmbedder` anchor prototypes (`TOPIC_CLUSTERS`). Returns `labels`, `topics`, `cluster_to_topic`, and `ranked_clusters` sorted by numerosity with `count`, `percentage`, `examples` (up to 5), and optional `keywords`.
 
 ### Normalizer (`ianuacare.ai.models.normalizer`)
 
