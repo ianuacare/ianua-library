@@ -13,7 +13,13 @@ from ianuacare.core.orchestration import InputDataParser, Orchestrator, OutputDa
 from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
 from ianuacare.infrastructure.cache import CacheClient
 from ianuacare.infrastructure.encryption import EncryptionService
-from ianuacare.infrastructure.storage import BucketClient, DatabaseClient, Reader, Writer
+from ianuacare.infrastructure.storage import (
+    BucketClient,
+    DatabaseClient,
+    Reader,
+    VectorDatabaseClient,
+    Writer,
+)
 
 
 @dataclass(slots=True)
@@ -40,10 +46,11 @@ def create_stack(
     encryption: EncryptionService | None = None,
     config: EnvConfigService | None = None,
     logger: StructuredLogger | None = None,
+    vector_database: VectorDatabaseClient | None = None,
 ) -> IanuacareStack:
     """Create all core services from injected adapters."""
     auth_service = AuthService(user_repository=auth_repository)  # type: ignore[arg-type]
-    writer = Writer(database, bucket, encryption=encryption)
+    writer = Writer(database, bucket, encryption=encryption, vector_client=vector_database)
     orchestrator = Orchestrator(
         input_parser=InputDataParser(),
         output_parser=OutputDataParser(),
@@ -56,7 +63,7 @@ def create_stack(
         data_manager=DataManager(),
         validator=DataValidator(),
         writer=writer,
-        reader=Reader(database),
+        reader=Reader(database, vector_client=vector_database),
         orchestrator=orchestrator,
         audit_service=AuditService(database),
     )

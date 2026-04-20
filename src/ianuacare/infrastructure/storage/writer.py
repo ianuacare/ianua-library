@@ -7,12 +7,20 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from ianuacare.core.exceptions.errors import StorageError
+from ianuacare.core.exceptions.errors import StorageError, ValidationError
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
 from ianuacare.infrastructure.encryption import EncryptionService
 from ianuacare.infrastructure.storage.bucket import BucketClient
 from ianuacare.infrastructure.storage.database import DatabaseClient
+from ianuacare.infrastructure.storage.vector import VectorDatabaseClient
+
+
+_VECTOR_FIELD_MAP: dict[str, tuple[str, str]] = {
+    "text": ("text", "text_vect"),
+    "sentence": ("sentence", "sentence_vect"),
+    "words": ("words", "words_vect"),
+}
 
 
 class Writer:
@@ -29,10 +37,12 @@ class Writer:
         db_client: DatabaseClient,
         bucket_client: BucketClient,
         encryption: EncryptionService | None = None,
+        vector_client: VectorDatabaseClient | None = None,
     ) -> None:
         self._db = db_client
         self._bucket = bucket_client
         self._encryption = encryption
+        self._vector = vector_client
 
     def write_raw(self, packet: DataPacket, context: RequestContext) -> dict[str, Any]:
         """Persist raw payload metadata and optional blob."""
@@ -262,6 +272,136 @@ class Writer:
             }
         except Exception as exc:
             raise StorageError("Failed to upload audio directly") from exc
+
+    def write_vector_upsert(
+        self,
+        collection: str,
+        artefatti: list[dict[str, Any]],
+        *,
+        vector_field: str,
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Upsert one point per element of ``vector_field`` across all artefacts.
+
+        ``vector_field`` selects the level to persist: ``"text"`` produces
+        one point per artefact (``index=0``), ``"sentence"`` and ``"words"``
+        produce one point per list element. Each point has a stable id of
+        the form ``{id_artefatto_trascrizione}:{level}:{index}`` and a
+        payload with ``user_id``, ``product``, ``level``, ``index`` and
+        ``source_text``.
+        """
+        if self._vector is None:
+            raise StorageError("vector_client is not configured on Writer")
+        if vector_field not in _VECTOR_FIELD_MAP:
+            raise ValidationError(
+                f"vector_field must be one of {sorted(_VECTOR_FIELD_MAP)}"
+            )
+        if not isinstance(artefatti, list):
+            raise ValidationError("artefatti must be a list")
+
+        text_key, vector_key = _VECTOR_FIELD_MAP[vector_field]
+        points = self._build_points(
+            artefatti=artefatti,
+            vector_field=vector_field,
+            text_key=text_key,
+            vector_key=vector_key,
+            context=context,
+        )
+        try:
+            return self._vector.upsert(collection, points)
+        except Exception as exc:
+            raise StorageError("Failed to upsert vector points") from exc
+
+    def write_vector_delete(
+        self,
+        collection: str,
+        *,
+        ids: list[Any] | None = None,
+        filters: dict[str, Any] | None = None,
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Delete vector points by explicit ``ids`` or by exact-match ``filters``."""
+        if self._vector is None:
+            raise StorageError("vector_client is not configured on Writer")
+        _ = context  # interface parity with other write methods
+        if ids is None and not filters:
+            raise ValidationError("vector delete requires 'ids' or 'filters'")
+        try:
+            return self._vector.delete(collection, ids=ids, filters=filters)
+        except Exception as exc:
+            raise StorageError("Failed to delete vector points") from exc
+
+    @staticmethod
+    def _build_points(
+        *,
+        artefatti: list[dict[str, Any]],
+        vector_field: str,
+        text_key: str,
+        vector_key: str,
+        context: RequestContext,
+    ) -> list[dict[str, Any]]:
+        """Materialize Qdrant-style points for the selected level of each artefact."""
+        points: list[dict[str, Any]] = []
+        for artefact in artefatti:
+            if not isinstance(artefact, dict):
+                raise ValidationError("each artefact must be a mapping")
+            artefact_id = artefact.get("id_artefatto_trascrizione")
+            if not isinstance(artefact_id, str) or not artefact_id:
+                raise ValidationError("artefact missing 'id_artefatto_trascrizione'")
+
+            if vector_field == "text":
+                vector = artefact.get(vector_key)
+                text = artefact.get(text_key, "")
+                if not isinstance(vector, list):
+                    raise ValidationError(
+                        f"artefact '{artefact_id}' missing '{vector_key}' list"
+                    )
+                points.append(
+                    {
+                        "id": f"{artefact_id}:{vector_field}:0",
+                        "vector": list(vector),
+                        "payload": {
+                            "user_id": context.user.user_id,
+                            "product": context.product,
+                            "id_artefatto_trascrizione": artefact_id,
+                            "level": vector_field,
+                            "index": 0,
+                            "source_text": text,
+                        },
+                    }
+                )
+                continue
+
+            texts = artefact.get(text_key, [])
+            vectors = artefact.get(vector_key, [])
+            if not isinstance(texts, list) or not isinstance(vectors, list):
+                raise ValidationError(
+                    f"artefact '{artefact_id}' requires '{text_key}' and '{vector_key}' lists"
+                )
+            if len(texts) != len(vectors):
+                raise ValidationError(
+                    f"artefact '{artefact_id}' has mismatched '{text_key}'/'{vector_key}' lengths"
+                )
+            for index, (source_text, vector) in enumerate(zip(texts, vectors, strict=True)):
+                if not isinstance(vector, list):
+                    raise ValidationError(
+                        f"artefact '{artefact_id}' vector at index {index} is not a list"
+                    )
+                points.append(
+                    {
+                        "id": f"{artefact_id}:{vector_field}:{index}",
+                        "vector": list(vector),
+                        "payload": {
+                            "user_id": context.user.user_id,
+                            "product": context.product,
+                            "id_artefatto_trascrizione": artefact_id,
+                            "level": vector_field,
+                            "index": index,
+                            "source_text": source_text,
+                        },
+                    }
+                )
+        return points
 
     @staticmethod
     def _blob_key(

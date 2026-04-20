@@ -133,6 +133,81 @@ class Pipeline:
         )
         return packet
 
+    def run_vector(
+        self,
+        operation: str,
+        input_data: Any,
+        context: RequestContext,
+    ) -> DataPacket:
+        """Execute vector-store flow (``upsert`` / ``search`` / ``delete``).
+
+        Mirrors :meth:`run_crud` but targets the injected
+        :class:`VectorDatabaseClient`. For ``search`` the caller may supply
+        either ``vector`` (a pre-computed embedding) or ``prompt`` (a string
+        that will be embedded on-the-fly via the ``text_embedder`` model).
+        """
+        packet = self._data_manager.collect(input_data, context)
+        self._audit.log_event(
+            "pipeline_vector_started",
+            context,
+            {"operation": operation},
+        )
+        self._validator.validate(packet)
+        payload = self._validator.validate_vector_payload(
+            packet.validated_data, operation=operation
+        )
+        collection = self._require_text(payload.get("collection"), field="collection")
+
+        if operation == "upsert":
+            artefatti = payload.get("artefatti") or []
+            vector_field = self._require_text(
+                payload.get("vector_field"), field="vector_field"
+            )
+            packet.processed_data = self._writer.write_vector_upsert(
+                collection,
+                artefatti,
+                vector_field=vector_field,
+                context=context,
+            )
+        elif operation == "search":
+            vector = payload.get("vector")
+            if not isinstance(vector, list) or not vector:
+                prompt = self._require_text(payload.get("prompt"), field="prompt")
+                vector = self._orchestrator.embed_text(prompt, context)
+            filters = payload.get("filters")
+            if not isinstance(filters, dict):
+                raise ValidationError("filters must be a mapping")
+            top_k = int(payload.get("top_k", 10))
+            score_threshold = payload.get("score_threshold")
+            packet.processed_data = self._reader.read_vector_search(
+                collection,
+                vector=vector,
+                top_k=top_k,
+                filters=filters,
+                score_threshold=score_threshold,
+                context=context,
+            )
+        elif operation == "delete":
+            ids = payload.get("ids")
+            filters = payload.get("filters")
+            if filters is not None and not isinstance(filters, dict):
+                raise ValidationError("filters must be a mapping when provided")
+            packet.processed_data = self._writer.write_vector_delete(
+                collection,
+                ids=ids,
+                filters=filters,
+                context=context,
+            )
+        else:
+            raise ValidationError(f"Unsupported vector operation: {operation}")
+
+        self._audit.log_event(
+            "pipeline_vector_completed",
+            context,
+            {"operation": operation},
+        )
+        return packet
+
     def run_audio(
         self,
         operation: str,

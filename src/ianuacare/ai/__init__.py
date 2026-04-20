@@ -8,6 +8,7 @@ from ianuacare.ai.models import (
     NLPModel,
     SpeakerClusterer,
     SpeakerEmbedder,
+    TextEmbedder,
     Transcription,
 )
 from ianuacare.ai.parsers import BaseParser, PauseParser, SpectralParser
@@ -32,6 +33,7 @@ __all__ = [
     "SpeakerEmbedder",
     "SpeechTranscriptionProvider",
     "SpectralParser",
+    "TextEmbedder",
     "TogetherAIProvider",
     "Transcription",
 ]

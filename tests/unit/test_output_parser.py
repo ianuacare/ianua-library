@@ -78,3 +78,40 @@ def test_diarization_only_normalizes() -> None:
     p = DataPacket(inference_result={"segments": [{"start": 0.0, "end": 1.0}]})
     OutputDataParser().parse(p, model_key="diarization")
     assert p.processed_data == {"segments": [{"start": 0.0, "end": 1.0}]}
+
+
+def test_text_embedder_wraps_single_artefact() -> None:
+    artefact = {
+        "id_artefatto_trascrizione": "tr-1",
+        "text": "ciao",
+        "text_vect": [1.0, 2.0],
+        "sentence": [],
+        "sentence_vect": [],
+        "words": [],
+        "words_vect": [],
+    }
+    p = DataPacket(inference_result=artefact)
+    OutputDataParser().parse(p, model_key="text_embedder")
+    assert p.processed_data == {"artefatti": [artefact]}
+
+
+def test_text_embedder_passes_list_through() -> None:
+    artefacts = [
+        {"id_artefatto_trascrizione": "a", "text": "x"},
+        {"id_artefatto_trascrizione": "b", "text": "y"},
+    ]
+    p = DataPacket(inference_result=artefacts)
+    OutputDataParser().parse(p, model_key="text_embedder")
+    assert p.processed_data == {"artefatti": artefacts}
+
+
+def test_text_embedder_rejects_invalid_result() -> None:
+    p = DataPacket(inference_result="not an artefact")
+    with pytest.raises(ValidationError):
+        OutputDataParser().parse(p, model_key="text_embedder")
+
+
+def test_text_embedder_rejects_non_mapping_list_item() -> None:
+    p = DataPacket(inference_result=[{"id_artefatto_trascrizione": "a"}, "bad"])
+    with pytest.raises(ValidationError):
+        OutputDataParser().parse(p, model_key="text_embedder")

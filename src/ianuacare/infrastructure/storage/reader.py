@@ -4,18 +4,28 @@ from __future__ import annotations
 
 from typing import Any
 
-from ianuacare.core.exceptions.errors import StorageError
+from ianuacare.core.exceptions.errors import StorageError, ValidationError
 from ianuacare.core.models.context import RequestContext
 from ianuacare.infrastructure.storage.bucket import BucketClient
 from ianuacare.infrastructure.storage.database import DatabaseClient
+from ianuacare.infrastructure.storage.vector import VectorDatabaseClient
+
+
+_VALID_LEVELS: frozenset[str] = frozenset({"text", "sentence", "words"})
 
 
 class Reader:
     """Reads domain records through the configured ``DatabaseClient``."""
 
-    def __init__(self, db_client: DatabaseClient, bucket_client: BucketClient | None = None) -> None:
+    def __init__(
+        self,
+        db_client: DatabaseClient,
+        bucket_client: BucketClient | None = None,
+        vector_client: VectorDatabaseClient | None = None,
+    ) -> None:
         self._db = db_client
         self._bucket = bucket_client
+        self._vector = vector_client
 
     def read_one(
         self,
@@ -49,6 +59,45 @@ class Reader:
             return self._db.read_many(collection, filters=filters)
         except Exception as exc:
             raise StorageError("Failed to read records") from exc
+
+    def read_vector_search(
+        self,
+        collection: str,
+        *,
+        vector: list[float],
+        top_k: int = 10,
+        filters: dict[str, Any],
+        score_threshold: float | None = None,
+        context: RequestContext,
+    ) -> list[dict[str, Any]]:
+        """Search the vector collection restricted to ``filters['level']``.
+
+        ``filters`` is required and must contain a ``level`` key whose value
+        is one of ``text``, ``sentence``, ``words`` (the levels produced by
+        the ``text_embedder`` pipeline). Additional keys in ``filters`` are
+        forwarded as exact-match conditions to the backend.
+        """
+        if self._vector is None:
+            raise StorageError("vector_client is not configured on Reader")
+        _ = context
+        if not isinstance(filters, dict) or "level" not in filters:
+            raise ValidationError("filters.level is required for vector search")
+        if filters["level"] not in _VALID_LEVELS:
+            raise ValidationError(
+                f"filters.level must be one of {sorted(_VALID_LEVELS)}"
+            )
+        if not isinstance(vector, list) or not vector:
+            raise ValidationError("vector must be a non-empty list of floats")
+        try:
+            return self._vector.search(
+                collection,
+                vector=vector,
+                top_k=top_k,
+                filters=dict(filters),
+                score_threshold=score_threshold,
+            )
+        except Exception as exc:
+            raise StorageError("Failed to search vector points") from exc
 
     def read_audio(
         self,

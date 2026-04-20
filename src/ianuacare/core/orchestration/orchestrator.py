@@ -35,6 +35,32 @@ class Orchestrator:
         self._cache = cache
         self._cache_ttl_seconds = cache_ttl_seconds
 
+    def embed_text(self, text: str, context: RequestContext) -> list[float]:
+        """Run the ``text_embedder`` model on ``text`` and return the top-level vector.
+
+        Useful when a downstream flow (e.g. vector search) needs to turn a
+        prompt into an embedding without executing the full pipeline.
+        """
+        _ = context  # kept for symmetry with other orchestration entrypoints
+        if "text_embedder" not in self._models:
+            raise OrchestrationError("text_embedder model is not registered")
+        if not isinstance(text, str) or not text.strip():
+            raise OrchestrationError("text must be a non-empty string")
+        payload = {
+            "id_artefatto_trascrizione": "prompt",
+            "text": text,
+            "sentences": [],
+            "words": [],
+        }
+        try:
+            result = self._models["text_embedder"].run(payload)
+        except Exception as exc:
+            raise InferenceError("text_embedder inference failed") from exc
+        vector = result.get("text_vect") if isinstance(result, dict) else None
+        if not isinstance(vector, list) or not vector:
+            raise OrchestrationError("text_embedder returned an empty vector")
+        return [float(component) for component in vector]
+
     def execute(self, packet: DataPacket, context: RequestContext) -> DataPacket:
         """Parse input, select model, run inference, then parse output into ``processed_data``."""
         model_key = self._select_model(context, packet)

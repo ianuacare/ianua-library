@@ -39,6 +39,62 @@ class DataValidator:
             return self._validate_audio_retrieve(value)
         raise ValidationError(f"Unsupported audio operation: {operation}")
 
+    def validate_vector_payload(self, value: Any, *, operation: str) -> dict[str, Any]:
+        """Validate vector-store payloads for ``upsert`` / ``search`` / ``delete``."""
+        if not isinstance(value, dict):
+            raise ValidationError("payload must be a mapping")
+        collection = value.get("collection")
+        if not isinstance(collection, str) or not collection:
+            raise ValidationError("collection is required")
+
+        if operation == "upsert":
+            return self._validate_vector_upsert(value)
+        if operation == "search":
+            return self._validate_vector_search(value)
+        if operation == "delete":
+            return self._validate_vector_delete(value)
+        raise ValidationError(f"Unsupported vector operation: {operation}")
+
+    @staticmethod
+    def _validate_vector_upsert(payload: dict[str, Any]) -> dict[str, Any]:
+        artefatti = payload.get("artefatti")
+        vector_field = payload.get("vector_field")
+        if not isinstance(artefatti, list) or not artefatti:
+            raise ValidationError("artefatti must be a non-empty list")
+        if vector_field not in {"text", "sentence", "words"}:
+            raise ValidationError("vector_field must be 'text', 'sentence', or 'words'")
+        return payload
+
+    @staticmethod
+    def _validate_vector_search(payload: dict[str, Any]) -> dict[str, Any]:
+        filters = payload.get("filters")
+        if not isinstance(filters, dict) or "level" not in filters:
+            raise ValidationError("filters.level is required")
+        if filters["level"] not in {"text", "sentence", "words"}:
+            raise ValidationError(
+                "filters.level must be 'text', 'sentence', or 'words'"
+            )
+        has_vector = isinstance(payload.get("vector"), list) and bool(payload.get("vector"))
+        has_prompt = isinstance(payload.get("prompt"), str) and bool(payload.get("prompt"))
+        if not has_vector and not has_prompt:
+            raise ValidationError("vector or prompt is required for search")
+        top_k = payload.get("top_k", 10)
+        if not isinstance(top_k, int) or top_k <= 0:
+            raise ValidationError("top_k must be a positive integer")
+        return payload
+
+    @staticmethod
+    def _validate_vector_delete(payload: dict[str, Any]) -> dict[str, Any]:
+        ids = payload.get("ids")
+        filters = payload.get("filters")
+        if ids is None and not filters:
+            raise ValidationError("vector delete requires 'ids' or 'filters'")
+        if ids is not None and not isinstance(ids, list):
+            raise ValidationError("ids must be a list when provided")
+        if filters is not None and not isinstance(filters, dict):
+            raise ValidationError("filters must be a mapping when provided")
+        return payload
+
     def _validate_audio_prepare(self, payload: dict[str, Any]) -> dict[str, Any]:
         collection = payload.get("collection")
         filename = payload.get("filename")

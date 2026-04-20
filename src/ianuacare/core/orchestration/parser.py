@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ianuacare.ai.text import clean_text, split_sentences, split_words
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.packet import DataPacket
 
@@ -45,7 +46,37 @@ class InputDataParser:
                     payload[field] = validated[field]
             return payload
 
+        if key == "text_embedder":
+            return self._parse_text_embedder(validated)
+
         return validated
+
+    @staticmethod
+    def _parse_text_embedder(validated: Any) -> dict[str, Any]:
+        """Clean text and optionally split into sentences and words for embedding."""
+        if not isinstance(validated, dict):
+            raise ValidationError("validated_data must be a mapping for text_embedder")
+        artefact_id = validated.get("id_artefatto_trascrizione")
+        text = validated.get("text")
+        if not isinstance(artefact_id, str) or not artefact_id.strip():
+            raise ValidationError("id_artefatto_trascrizione is required for text_embedder")
+        if not isinstance(text, str) or not text.strip():
+            raise ValidationError("validated_data.text is required for text_embedder")
+
+        split_sentences_flag = bool(validated.get("split_sentences", True))
+        split_words_flag = bool(validated.get("split_words", False))
+        lowercase = bool(validated.get("lowercase", False))
+
+        cleaned = clean_text(text, lowercase=lowercase)
+        sentences = split_sentences(cleaned) if split_sentences_flag else []
+        words = split_words(cleaned) if split_words_flag else []
+
+        return {
+            "id_artefatto_trascrizione": artefact_id,
+            "text": cleaned,
+            "sentences": sentences,
+            "words": words,
+        }
 
 
 _JSON_SCHEMA_TYPE_MAP: dict[str, tuple[type, ...]] = {
@@ -77,6 +108,9 @@ class OutputDataParser:
             result = self._parse_llm(result, schema=schema)
         elif key == "diarization":
             result = self._parse_diarization(result)
+        elif key == "text_embedder":
+            packet.processed_data = self._parse_text_embedder(result)
+            return packet
 
         packet.processed_data = self._normalize_processed(result)
         return packet
@@ -92,6 +126,24 @@ class OutputDataParser:
     def _parse_diarization(self, result: Any) -> Any:
         """Branch for ``diarization``: placeholder for future post-processing hooks."""
         return result
+
+    @staticmethod
+    def _parse_text_embedder(result: Any) -> dict[str, Any]:
+        """Wrap ``text_embedder`` output in the ``{artefatti: [...]}`` envelope.
+
+        Accepts either a single artefact dict (wrapped in a single-item list)
+        or an already-built list of artefact dicts (passed through).
+        """
+        if isinstance(result, dict):
+            return {"artefatti": [result]}
+        if isinstance(result, list):
+            for index, item in enumerate(result):
+                if not isinstance(item, dict):
+                    raise ValidationError(
+                        f"text_embedder item at index {index} must be a mapping"
+                    )
+            return {"artefatti": list(result)}
+        raise ValidationError("text_embedder result must be a mapping or a list of mappings")
 
     @staticmethod
     def _normalize_processed(result: Any) -> Any:

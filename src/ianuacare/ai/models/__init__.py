@@ -7,6 +7,7 @@ from ianuacare.ai.models.inference import (
     NLPModel,
     SpeakerClusterer,
     SpeakerEmbedder,
+    TextEmbedder,
     Transcription,
 )
 from ianuacare.ai.models.normalizer import ModelOutNormalizer
@@ -19,5 +20,6 @@ __all__ = [
     "NLPModel",
     "SpeakerClusterer",
     "SpeakerEmbedder",
+    "TextEmbedder",
     "Transcription",
 ]
