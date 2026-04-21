@@ -221,6 +221,32 @@ class TestDelete:
             pipe.run_vector("delete", {"collection": "clinical"}, ctx)
 
 
+class TestScroll:
+    def test_returns_all_points(self, pipeline_fixture) -> None:
+        pipe, _, ctx = pipeline_fixture
+        pipe.run_vector(
+            "upsert",
+            {
+                "collection": "clinical",
+                "vector_field": "text",
+                "artefatti": [
+                    _artefact("a", "diabete", [1.0, 0.0]),
+                    _artefact("b", "ipertensione", [0.0, 1.0]),
+                ],
+            },
+            ctx,
+        )
+        packet = pipe.run_vector(
+            "scroll",
+            {"collection": "clinical"},
+            ctx,
+        )
+        ids = {row["id"] for row in packet.processed_data}
+        assert ids == {"a:text:0", "b:text:0"}
+        levels = {row["payload"]["level"] for row in packet.processed_data}
+        assert levels == {"text"}
+
+
 class TestOperation:
     def test_unknown_operation_rejected(self, pipeline_fixture) -> None:
         pipe, _, ctx = pipeline_fixture

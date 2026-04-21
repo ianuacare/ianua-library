@@ -182,3 +182,24 @@ class TestDelete:
             db = QdrantDatabaseClient(client=fake)
             with pytest.raises(ValueError):
                 db.delete("docs")
+
+
+class TestScroll:
+    def test_paginates_until_exhausted(self) -> None:
+        r1 = SimpleNamespace(id="a", payload={"k": 1}, vector=None)
+        r2 = SimpleNamespace(id="b", payload={"k": 2}, vector=None)
+        fake = MagicMock()
+        fake.scroll.side_effect = [
+            ([r1], "off-1"),
+            ([r2], None),
+        ]
+        with patch.object(qdrant_module, "qmodels", _make_qmodels_stub()):
+            db = QdrantDatabaseClient(client=fake)
+            rows = db.scroll("docs", filters={"level": "text"}, batch_size=1)
+        assert rows == [
+            {"id": "a", "payload": {"k": 1}},
+            {"id": "b", "payload": {"k": 2}},
+        ]
+        assert fake.scroll.call_count == 2
+        assert fake.scroll.call_args_list[0].kwargs["limit"] == 1
+        assert fake.scroll.call_args_list[1].kwargs["offset"] == "off-1"
