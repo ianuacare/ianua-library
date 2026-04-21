@@ -12,7 +12,11 @@ from ianuacare.core.exceptions.errors import InferenceError, ValidationError
 
 
 class LabelClusterer(BaseAIModel):
-    """Cluster vectors and map discovered clusters to caller-provided labels."""
+    """Cluster vectors and map discovered clusters to caller-provided labels.
+
+    Optional payload keys ``texts`` and ``point_ids`` align with ``vectors`` and are
+    echoed in the result (defaults: empty strings and ``None`` ids).
+    """
 
     def __init__(
         self,
@@ -24,6 +28,7 @@ class LabelClusterer(BaseAIModel):
 
     def run(self, payload: Any) -> dict[str, Any]:
         vectors = self._extract_vectors(payload)
+        texts, point_ids = self._extract_point_metadata(payload, len(vectors))
         label_clusters = self._extract_label_clusters(payload)
         n_clusters = min(len(vectors), len(label_clusters))
         if n_clusters == 0:
@@ -33,6 +38,8 @@ class LabelClusterer(BaseAIModel):
                 "cluster_to_label": {},
                 "projected_vectors": [],
                 "explained_variance_ratio": [],
+                "texts": texts, #TO DO: forse non c'è coglione
+                "point_ids": point_ids,
             }
 
         labels, centroids = self._cluster_in_original_space(vectors, n_clusters)
@@ -46,6 +53,8 @@ class LabelClusterer(BaseAIModel):
             "cluster_to_label": cluster_to_label,
             "projected_vectors": projected_vectors,
             "explained_variance_ratio": explained_variance_ratio,
+            "texts": texts,
+            "point_ids": point_ids,
         }
 
     def _extract_vectors(self, payload: Any) -> list[list[float]]:
@@ -70,6 +79,35 @@ class LabelClusterer(BaseAIModel):
         if any(len(vector) != dim for vector in vectors):
             raise ValidationError("all vectors must have the same dimensionality")
         return vectors
+
+    def _extract_point_metadata(
+        self, payload: Mapping[Any, Any], vector_count: int
+    ) -> tuple[list[str], list[Any]]:
+        """Optional per-vector text and point id, aligned with ``vectors`` order."""
+        raw_texts = payload.get("texts", [])
+        if not isinstance(raw_texts, list):
+            raise ValidationError("texts must be a list when provided")
+        texts: list[str] = []
+        for index, value in enumerate(raw_texts):
+            if not isinstance(value, str):
+                raise ValidationError(f"text at index {index} must be a string")
+            texts.append(value)
+        if texts and len(texts) != vector_count:
+            raise ValidationError("texts length must match vectors length")
+        if not texts:
+            texts = [""] * vector_count
+
+        raw_ids = payload.get("point_ids")
+        if raw_ids is None:
+            point_ids = [None] * vector_count
+        else:
+            if not isinstance(raw_ids, list):
+                raise ValidationError("point_ids must be a list when provided")
+            if len(raw_ids) != vector_count:
+                raise ValidationError("point_ids length must match vectors length")
+            point_ids = list(raw_ids)
+
+        return texts, point_ids
 
     def _extract_label_clusters(self, payload: Any) -> dict[str, list[str]]:
         if not isinstance(payload, Mapping):

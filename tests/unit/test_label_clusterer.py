@@ -52,6 +52,27 @@ def test_run_clusters_and_maps_labels() -> None:
     assert len(result["projected_vectors"]) == 4
     assert len(result["projected_vectors"][0]) == 2
     assert 1 <= len(result["explained_variance_ratio"]) <= 2
+    assert result["texts"] == ["", "", "", ""]
+    assert result["point_ids"] == [None, None, None, None]
+
+
+def test_run_echoes_texts_and_point_ids() -> None:
+    model = LabelClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
+    payload = {
+        "vectors": [
+            [0.0, 0.1, 0.0],
+            [5.0, 5.1, 5.2],
+        ],
+        "label_clusters": LABEL_CLUSTERS,
+        "texts": ["alpha", "beta"],
+        "point_ids": ["p-1", 42],
+    }
+
+    result = model.run(payload)
+
+    assert result["texts"] == ["alpha", "beta"]
+    assert result["point_ids"] == ["p-1", 42]
+    assert len(result["labels"]) == 2
 
 
 @pytest.mark.parametrize(
@@ -65,6 +86,9 @@ def test_run_clusters_and_maps_labels() -> None:
         {"vectors": [[1.0, "x"]], "label_clusters": LABEL_CLUSTERS},
         {"vectors": [[1.0, 2.0]], "label_clusters": {}},
         {"vectors": [[1.0, 2.0]], "label_clusters": {"x": []}},
+        {"vectors": [[1.0, 2.0], [1.0, 2.0]], "label_clusters": LABEL_CLUSTERS, "texts": ["a"]},
+        {"vectors": [[1.0, 2.0]], "label_clusters": LABEL_CLUSTERS, "point_ids": []},
+        {"vectors": [[1.0, 2.0]], "label_clusters": LABEL_CLUSTERS, "point_ids": [1, 2]},
     ],
 )
 def test_run_rejects_invalid_payload(payload: Any) -> None:
