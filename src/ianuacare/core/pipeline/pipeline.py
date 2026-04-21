@@ -139,12 +139,14 @@ class Pipeline:
         input_data: Any,
         context: RequestContext,
     ) -> DataPacket:
-        """Execute vector-store flow (``upsert`` / ``search`` / ``delete``).
+        """Execute vector-store flow (``upsert`` / ``search`` / ``delete`` / ``scroll``).
 
         Mirrors :meth:`run_crud` but targets the injected
         :class:`VectorDatabaseClient`. For ``search`` the caller may supply
         either ``vector`` (a pre-computed embedding) or ``prompt`` (a string
         that will be embedded on-the-fly via the ``text_embedder`` model).
+        For ``scroll``, the backend lists all points in the collection using
+        Qdrant-style pagination (see ``Reader.read_vector_scroll``).
         """
         packet = self._data_manager.collect(input_data, context)
         self._audit.log_event(
@@ -196,6 +198,21 @@ class Pipeline:
                 collection,
                 ids=ids,
                 filters=filters,
+                context=context,
+            )
+        elif operation == "scroll":
+            filters = payload.get("filters")
+            if filters is not None and not isinstance(filters, dict):
+                raise ValidationError("filters must be a mapping when provided")
+            batch_size = int(payload.get("batch_size", 256))
+            with_vectors = bool(payload.get("with_vectors", False))
+            with_payload = bool(payload.get("with_payload", True))
+            packet.processed_data = self._reader.read_vector_scroll(
+                collection,
+                filters=filters,
+                batch_size=batch_size,
+                with_vectors=with_vectors,
+                with_payload=with_payload,
                 context=context,
             )
         else:

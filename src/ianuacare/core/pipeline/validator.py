@@ -40,7 +40,7 @@ class DataValidator:
         raise ValidationError(f"Unsupported audio operation: {operation}")
 
     def validate_vector_payload(self, value: Any, *, operation: str) -> dict[str, Any]:
-        """Validate vector-store payloads for ``upsert`` / ``search`` / ``delete``."""
+        """Validate vector-store payloads for ``upsert`` / ``search`` / ``delete`` / ``scroll``."""
         if not isinstance(value, dict):
             raise ValidationError("payload must be a mapping")
         collection = value.get("collection")
@@ -53,6 +53,8 @@ class DataValidator:
             return self._validate_vector_search(value)
         if operation == "delete":
             return self._validate_vector_delete(value)
+        if operation == "scroll":
+            return self._validate_vector_scroll(value)
         raise ValidationError(f"Unsupported vector operation: {operation}")
 
     @staticmethod
@@ -93,6 +95,22 @@ class DataValidator:
             raise ValidationError("ids must be a list when provided")
         if filters is not None and not isinstance(filters, dict):
             raise ValidationError("filters must be a mapping when provided")
+        return payload
+
+    @staticmethod
+    def _validate_vector_scroll(payload: dict[str, Any]) -> dict[str, Any]:
+        filters = payload.get("filters")
+        if filters is not None and not isinstance(filters, dict):
+            raise ValidationError("filters must be a mapping when provided")
+        batch_size = payload.get("batch_size", 256)
+        if not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValidationError("batch_size must be a positive integer")
+        with_vectors = payload.get("with_vectors", False)
+        if not isinstance(with_vectors, bool):
+            raise ValidationError("with_vectors must be a boolean when provided")
+        with_payload = payload.get("with_payload", True)
+        if not isinstance(with_payload, bool):
+            raise ValidationError("with_payload must be a boolean when provided")
         return payload
 
     def _validate_audio_prepare(self, payload: dict[str, Any]) -> dict[str, Any]:

@@ -46,6 +46,18 @@ class VectorDatabaseClient(Protocol):
         """Delete points matching ``ids`` or ``filters`` (exact-match payload)."""
         ...
 
+    def scroll(
+        self,
+        collection: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        batch_size: int = 256,
+        with_vectors: bool = False,
+        with_payload: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Iterate all points in ``collection`` (optionally filtered), like Qdrant ``scroll``."""
+        ...
+
 
 class InMemoryVectorDatabaseClient:
     """In-memory ``VectorDatabaseClient`` for development and tests.
@@ -174,6 +186,31 @@ class InMemoryVectorDatabaseClient:
         deleted = len(bucket) - len(kept)
         self._collections[collection] = kept
         return {"ok": True, "collection": collection, "deleted": deleted}
+
+    def scroll(
+        self,
+        collection: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        batch_size: int = 256,
+        with_vectors: bool = False,
+        with_payload: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Return all points (``batch_size`` only affects API parity with Qdrant)."""
+        _ = batch_size
+        bucket = self._collections.get(collection, [])
+        rows: list[dict[str, Any]] = []
+        for point in bucket:
+            payload = point.get("payload") or {}
+            if filters and not self._matches(dict(payload), filters):
+                continue
+            row: dict[str, Any] = {"id": point["id"]}
+            if with_payload:
+                row["payload"] = dict(payload)
+            if with_vectors:
+                row["vector"] = list(point["vector"])
+            rows.append(row)
+        return rows
 
     @staticmethod
     def _matches(payload: dict[str, Any], filters: dict[str, Any]) -> bool:

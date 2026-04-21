@@ -99,6 +99,35 @@ class Reader:
         except Exception as exc:
             raise StorageError("Failed to search vector points") from exc
 
+    def read_vector_scroll(
+        self,
+        collection: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        batch_size: int = 256,
+        with_vectors: bool = False,
+        with_payload: bool = True,
+        context: RequestContext,
+    ) -> list[dict[str, Any]]:
+        """List all points in the vector collection via backend ``scroll`` (paginated internally)."""
+        if self._vector is None:
+            raise StorageError("vector_client is not configured on Reader")
+        _ = context
+        if filters is not None and not isinstance(filters, dict):
+            raise ValidationError("filters must be a mapping when provided")
+        if not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValidationError("batch_size must be a positive integer")
+        try:
+            return self._vector.scroll(
+                collection,
+                filters=dict(filters) if filters else None,
+                batch_size=batch_size,
+                with_vectors=with_vectors,
+                with_payload=with_payload,
+            )
+        except Exception as exc:
+            raise StorageError("Failed to scroll vector points") from exc
+
     def read_audio(
         self,
         collection: str,

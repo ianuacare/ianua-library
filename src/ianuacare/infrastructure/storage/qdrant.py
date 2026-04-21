@@ -139,6 +139,70 @@ class QdrantDatabaseClient:
         self._client.delete(collection_name=collection, points_selector=selector)
         return {"ok": True, "collection": collection}
 
+    def scroll(
+        self,
+        collection: str,
+        *,
+        filters: dict[str, Any] | None = None,
+        batch_size: int = 256,
+        with_vectors: bool = False,
+        with_payload: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Return all points in ``collection`` using the client's ``scroll`` pagination."""
+        if qmodels is None:  # pragma: no cover
+            raise ImportError("qdrant-client models are not available")
+        query_filter = self._build_filter(filters)
+        limit = max(int(batch_size), 1)
+        offset: Any = None
+        out: list[dict[str, Any]] = []
+        while True:
+            records, next_offset = self._client.scroll(
+                collection_name=collection,
+                scroll_filter=query_filter,
+                limit=limit,
+                offset=offset,
+                with_payload=with_payload,
+                with_vectors=with_vectors,
+            )
+            for record in records:
+                out.append(self._scroll_record_to_dict(record, with_payload=with_payload, with_vectors=with_vectors))
+            if next_offset is None:
+                break
+            offset = next_offset
+        return out
+
+    @staticmethod
+    def _scroll_record_to_dict(
+        record: Any,
+        *,
+        with_payload: bool,
+        with_vectors: bool,
+    ) -> dict[str, Any]:
+        row: dict[str, Any] = {"id": getattr(record, "id", None)}
+        if with_payload:
+            payload = getattr(record, "payload", None)
+            row["payload"] = dict(payload or {})
+        if with_vectors:
+            vec = getattr(record, "vector", None)
+            if vec is not None:
+                row["vector"] = QdrantDatabaseClient._normalize_scroll_vector(vec)
+        return row
+
+    @staticmethod
+    def _normalize_scroll_vector(vec: Any) -> Any:
+        if isinstance(vec, dict):
+            return {
+                str(key): (
+                    list(val)
+                    if isinstance(val, (list, tuple))
+                    else QdrantDatabaseClient._normalize_scroll_vector(val)
+                )
+                for key, val in vec.items()
+            }
+        if isinstance(vec, (list, tuple)):
+            return [float(x) for x in vec]
+        return vec
+
     # -- Internal helpers -----------------------------------------------
 
     def _list_collection_names(self) -> set[str]:
