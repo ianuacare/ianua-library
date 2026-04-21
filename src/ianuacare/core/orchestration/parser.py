@@ -30,7 +30,11 @@ class InputDataParser:
             text = validated.get("text")
             if not isinstance(text, str) or not text.strip():
                 raise ValidationError("validated_data.text is required for llm")
-            return {"prompt": "", "text": text}
+            out: dict[str, Any] = {"prompt": "", "text": text}
+            mt = validated.get("model_type")
+            if isinstance(mt, str) and mt.strip():
+                out["model_type"] = mt.strip().lower()
+            return out
 
         if key == "diarization":
             if not isinstance(validated, dict):
@@ -71,12 +75,16 @@ class InputDataParser:
         sentences = split_sentences(cleaned) if split_sentences_flag else []
         words = split_words(cleaned) if split_words_flag else []
 
-        return {
+        result: dict[str, Any] = {
             "id_artefatto_trascrizione": artefact_id,
             "text": cleaned,
             "sentences": sentences,
             "words": words,
         }
+        mt = validated.get("model_type")
+        if isinstance(mt, str) and mt.strip():
+            result["model_type"] = mt.strip().lower()
+        return result
 
 
 _JSON_SCHEMA_TYPE_MAP: dict[str, tuple[type, ...]] = {

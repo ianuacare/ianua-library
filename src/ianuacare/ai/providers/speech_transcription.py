@@ -51,7 +51,10 @@ class SpeechTranscriptionProvider(AIProvider):
         byte_budget = _SAFE_CHUNK_BYTES - _WAV_HEADER_MARGIN
         return max(1000, byte_budget // 2)
 
-    def infer(self, model_name: str, payload: Any) -> dict[str, Any]:
+    def infer(
+        self, model_name: str, payload: Any, *, model_type: str | None = None
+    ) -> dict[str, Any]:
+        _ = model_type
         if self._client is None:
             return {"text": "", "segments": []}
         if not isinstance(payload, dict):

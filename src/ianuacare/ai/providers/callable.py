@@ -14,7 +14,8 @@ class CallableProvider(AIProvider):
     def __init__(self, infer_fn: Callable[[str, Any], Any] | None = None) -> None:
         self._infer = infer_fn or self._default_infer
 
-    def infer(self, model_name: str, payload: Any) -> Any:
+    def infer(self, model_name: str, payload: Any, *, model_type: str | None = None) -> Any:
+        _ = model_type
         return self._infer(model_name, payload)
 
     @staticmethod

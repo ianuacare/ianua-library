@@ -12,25 +12,35 @@ class AIProvider(ABC):
     """Common contract for provider-side inference."""
 
     @abstractmethod
-    def infer(self, model_name: str, payload: Any) -> Any:
-        """Return raw backend output for ``model_name`` and ``payload``."""
+    def infer(self, model_name: str, payload: Any, *, model_type: str | None = None) -> Any:
+        """Return raw backend output for ``model_name`` and ``payload``.
+
+        ``model_type`` hints the backend modality (for example ``"embedding"`` vs chat);
+        providers that only support one mode may ignore it.
+        """
         ...
 
-    def infer_stream(self, model_name: str, payload: Any) -> Iterator[str]:
+    def infer_stream(
+        self, model_name: str, payload: Any, *, model_type: str | None = None
+    ) -> Iterator[str]:
         """Stream text chunks for ``model_name``; default wraps a single ``infer`` call."""
-        raw = self.infer(model_name, payload)
+        raw = self.infer(model_name, payload, model_type=model_type)
         text = self._raw_to_stream_text(raw)
         if text:
             yield text
 
-    async def ainfer(self, model_name: str, payload: Any) -> Any:
+    async def ainfer(
+        self, model_name: str, payload: Any, *, model_type: str | None = None
+    ) -> Any:
         """Async inference; default runs ``infer`` in a thread."""
-        return await asyncio.to_thread(self.infer, model_name, payload)
+        return await asyncio.to_thread(self.infer, model_name, payload, model_type=model_type)
 
-    async def ainfer_stream(self, model_name: str, payload: Any) -> AsyncIterator[str]:
+    async def ainfer_stream(
+        self, model_name: str, payload: Any, *, model_type: str | None = None
+    ) -> AsyncIterator[str]:
         """Async text stream; default materializes ``infer_stream`` in a worker thread."""
         chunks: list[str] = await asyncio.to_thread(
-            lambda: list(self.infer_stream(model_name, payload))
+            lambda: list(self.infer_stream(model_name, payload, model_type=model_type))
         )
         for chunk in chunks:
             yield chunk

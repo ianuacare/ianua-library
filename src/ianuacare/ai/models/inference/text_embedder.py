@@ -55,8 +55,15 @@ class TextEmbedder(NLPModel):
         if not isinstance(words, list):
             raise ValidationError("words must be a list")
 
+        model_type_kw: str | None = None
+        mt = payload.get("model_type")
+        if isinstance(mt, str) and mt.strip():
+            model_type_kw = mt.strip().lower()
+
         batch: list[str] = [text, *sentences, *words]
-        raw = self._provider.infer(self._model_name, batch)
+        raw = self._provider.infer(
+            self._model_name, batch, model_type=model_type_kw or "embedding"
+        )
 
         vectors = self._coerce_vectors(raw, expected=len(batch))
 
