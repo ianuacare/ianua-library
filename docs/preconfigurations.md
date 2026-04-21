@@ -19,7 +19,7 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 ### :material-database: Storage
 
 - :simple-postgresql: `PostgresDatabaseClient` (`ianuacare.infrastructure.storage`) for relational persistence with dynamic columns (safe identifiers via `psycopg.sql`).
-- :material-database-search: `QdrantDatabaseClient` (`ianuacare.infrastructure.storage`) for vector persistence/search (optional `qdrant` extra).
+- :material-database-search: `QdrantDatabaseClient` (`ianuacare.infrastructure.storage`) for vector persistence, similarity search, and full-collection `scroll` (optional `qdrant` extra).
 - :fontawesome-brands-aws: `S3BucketClient` (`ianuacare.infrastructure.storage`) for blob/object storage.
 - `Reader` and `Writer` (`ianuacare.infrastructure.storage`) for CRUD reads/writes, vector reads/writes, and pipeline artifact persistence over `DatabaseClient`/`VectorDatabaseClient`.
 

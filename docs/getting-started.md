@@ -134,7 +134,7 @@ print(created.processed_data)
 
 ## Vector flow example (`run_vector`)
 
-`Pipeline.run_vector(...)` supports `upsert`, `search`, `delete` over a vector backend.
+`Pipeline.run_vector(...)` supports `upsert`, `search`, `delete`, and `scroll` (list all points in a collection, using the vector backend's scroll semantics; with Qdrant this maps to `QdrantClient.scroll` in pages).
 
 ```python
 from ianuacare import InMemoryVectorDatabaseClient, TextEmbedder
@@ -189,6 +189,25 @@ hits = pipe.run_vector(
     ctx,
 ).processed_data
 print(hits)
+```
+
+### Elencare tutti i punti (`scroll`)
+
+Dopo un upsert (o per ispezionare una collection esistente), puoi ottenere l'elenco completo dei punti senza query vettoriale:
+
+```python
+points = pipe.run_vector(
+    "scroll",
+    {
+        "collection": "clinical_notes",
+        # opzionale: filtri esatti sul payload, es. {"level": "text"}
+        # "batch_size": 256,       # dimensione pagina verso Qdrant
+        # "with_vectors": True,   # includi i vettori in ogni punto
+        # "with_payload": True,   # default
+    },
+    ctx,
+).processed_data
+print([p["id"] for p in points])
 ```
 
 For `QdrantDatabaseClient`, `upsert(...)` auto-calls `ensure_collection(...)` when the collection is missing (distance default: `Cosine`).

@@ -33,6 +33,9 @@ flowchart LR
     validateStep -->|vector_search| vecSearch[Reader.read_vector_search]
     vecSearch --> vecResult
 
+    validateStep -->|vector_scroll| vecScroll[Reader.read_vector_scroll]
+    vecScroll --> vecResult
+
     validateStep -->|vector_delete| vecDelete[Writer.write_vector_delete]
     vecDelete --> vecResult
 
@@ -47,6 +50,7 @@ flowchart LR
     crudRead -.-> logEvent
     vecUpsert -.-> logEvent
     vecSearch -.-> logEvent
+    vecScroll -.-> logEvent
     vecDelete -.-> logEvent
 ```
 
@@ -96,4 +100,4 @@ src/ianuacare/
 
 `PostgresDatabaseClient` persists CRUD records using relational columns and safe SQL composition (`psycopg.sql.Identifier` for table/column names), while allowing JSONB only for variable-shaped values when needed.
 
-For vector search, `InMemoryVectorDatabaseClient` is available for local/testing, while `QdrantDatabaseClient` implements the same protocol for production. `upsert(...)` auto-runs `ensure_collection(...)` when the target collection does not exist (default distance: `Cosine`).
+For vector search and full-collection listing, `InMemoryVectorDatabaseClient` is available for local/testing, while `QdrantDatabaseClient` implements the same protocol for production, including `scroll(...)` backed by `QdrantClient.scroll`. `upsert(...)` auto-runs `ensure_collection(...)` when the target collection does not exist (default distance: `Cosine`).

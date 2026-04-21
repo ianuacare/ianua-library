@@ -405,12 +405,13 @@ print(packet.processed_data["download_url"])
 
 ## 6 — Vector DB: `pipeline.run_vector(...)`
 
-Per scrivere/cercare/cancellare embeddings nel DB vettoriale l'app usa `pipeline.run_vector(operation, input_data, context)`.
+Per scrivere, cercare, elencare o cancellare embeddings nel DB vettoriale l'app usa `pipeline.run_vector(operation, input_data, context)`.
 
 | `operation` | Campi richiesti in `input_data` | Output |
 |---|---|---|
 | `"upsert"` | `collection`, `artefatti`, `vector_field` (`text`/`sentence`/`words`) | conteggio upsert |
 | `"search"` | `collection`, `filters.level`, `vector` **oppure** `prompt`, `top_k` opzionale | lista hit |
+| `"scroll"` | `collection`; opzionale `filters` (match esatto sul payload), `batch_size`, `with_vectors`, `with_payload` | lista di punti (`id`, payload e/o vector secondo i flag) |
 | `"delete"` | `collection`, `ids` **oppure** `filters` | conteggio delete |
 
 ### Esempio: upsert
@@ -442,6 +443,26 @@ packet = pipeline.run_vector(
     context,
 )
 print(packet.processed_data)
+```
+
+### Esempio: scroll (tutti i punti)
+
+L'operazione `scroll` attraversa tutta la collection usando l'API `scroll` del client Qdrant (paginazione interna con `batch_size`). Non richiede `filters.level`; i filtri opzionali applicano condizioni di uguaglianza sui campi del payload.
+
+```python
+packet = pipeline.run_vector(
+    "scroll",
+    {
+        "collection": "clinical_notes",
+        "filters": {"level": "sentence"},  # opzionale: limita ai payload che matchano
+        "batch_size": 256,
+        "with_payload": True,
+        "with_vectors": False,
+    },
+    context,
+)
+for point in packet.processed_data:
+    print(point["id"], point.get("payload"))
 ```
 
 !!! note "Creazione collection"
@@ -516,5 +537,5 @@ flowchart LR
 | **Inferenza** | Chiama `run_model(input_data, context)` | Valida, salva, seleziona modello, parsa, inferisce, salva risultato |
 | **CRUD** | Chiama `run_crud(op, data, context)` | Valida e esegue l'operazione su DB |
 | **Audio S3** | Chiama `run_audio(op, data, context)` | Valida payload audio, salva metadata DB, genera URL presigned upload/download |
-| **Vector DB** | Chiama `run_vector(op, data, context)` | Valida payload vector, upsert/search/delete su vector client |
+| **Vector DB** | Chiama `run_vector(op, data, context)` | Valida payload vector, upsert/search/scroll/delete su vector client |
 | **Errori** | Cattura eccezioni e mappa a HTTP status | Alza eccezioni tipizzate |

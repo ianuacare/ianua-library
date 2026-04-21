@@ -169,9 +169,10 @@ Module path: `ianuacare.core.pipeline`
   - result is set in `packet.processed_data` consistently.
 - `run_vector(operation, input_data, context: RequestContext) -> DataPacket` — vector flow:
   - write ops: `upsert` / `delete` use `Writer`
-  - read op: `search` uses `Reader`
+  - read ops: `search` and `scroll` use `Reader`
   - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via `Orchestrator.embed_text`)
-  - `filters.level` is required (`text`, `sentence`, `words`)
+  - `search`: `filters.level` is required (`text`, `sentence`, `words`)
+  - `scroll`: lists all points in the collection (paginated internally); optional `filters` for exact-match payload fields; with `QdrantDatabaseClient`, uses the official client's `scroll` API until all pages are consumed
 
 ## Orchestration
 
@@ -268,6 +269,7 @@ Module path: `ianuacare.infrastructure.storage`
   - `upsert(collection, points) -> dict`
   - `search(collection, *, vector, top_k=10, filters=None, score_threshold=None) -> list[dict]`
   - `delete(collection, *, ids=None, filters=None) -> dict`
+  - `scroll(collection, *, filters=None, batch_size=256, with_vectors=False, with_payload=True) -> list[dict]` — each row includes `id`; payload/vector presence matches the flags (`QdrantDatabaseClient` wraps `QdrantClient.scroll` in a loop)
 
 ### Implementations
 
@@ -300,6 +302,7 @@ Raises `StorageError` on failure.
 - `read_many(collection, *, filters, context) -> list[dict]`
 - `read_vector_search(collection, *, vector, top_k=10, filters, score_threshold=None, context) -> list[dict]`
   - requires `filters.level` (`text`, `sentence`, `words`)
+- `read_vector_scroll(collection, *, filters=None, batch_size=256, with_vectors=False, with_payload=True, context) -> list[dict]` — full collection scan via `VectorDatabaseClient.scroll` (no `filters.level` requirement; optional `filters` are exact-match on payload keys when provided)
 
 Reads through the configured `DatabaseClient`; raises `StorageError` on failure.
 
