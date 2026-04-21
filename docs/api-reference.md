@@ -208,6 +208,10 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
 - `LLMModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
+- `LLMModel.stream(payload) -> Iterator[str]` — text fragments from `AIProvider.infer_stream`.
+- `LLMModel.arun(payload) -> dict` — async via `AIProvider.ainfer` + `normalize_summary`.
+- `LLMModel.astream(payload) -> AsyncIterator[str]` — chunks from `AIProvider.ainfer_stream`.
+- `LLMModel.finalize_stream_text(text) -> dict` — normalizes assembled stream text like `run`.
 - `TextEmbedder.run(payload) -> dict` — returns text/sentence/word vectors in a normalized artefact shape.
 - `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
 - `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
@@ -224,6 +228,9 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 ### Providers (`ianuacare.ai.providers`)
 
 - `AIProvider.infer(model_name, payload) -> Any` — provider contract (raw output).
+- `AIProvider.infer_stream(model_name, payload) -> Iterator[str]` — optional streaming; default yields one chunk from `infer`.
+- `AIProvider.ainfer(model_name, payload)` — async; default runs `infer` in a worker thread.
+- `AIProvider.ainfer_stream(model_name, payload) -> AsyncIterator[str]` — async stream; default materializes `infer_stream` in a thread.
 - `CallableProvider` — callable-backed provider for tests.
 - `TogetherAIProvider` — Together chat completions adapter.
 - `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio).
@@ -305,6 +312,42 @@ Module path: `ianuacare.core.audit`
 - `log_event(event_name: str, context: RequestContext, details: dict | None) -> None`
 
 Writes to collection `audit_events`. **Do not** put PHI in `details`.
+
+## Chatbot (`ianuacare.core.chatbot`)
+
+Not re-exported from top-level `ianuacare`; import from `ianuacare.core.chatbot`. Overview and diagrams: see [RAG chatbot](chatbot.md).
+
+### Types
+
+Module path: `ianuacare.core.chatbot.message`
+
+- **`Message`** — `role`: `user` | `assistant` | `system`; `content`: `str`.
+- **`RetrievedPoint`** — `id`, `source_text`, `score`, `turn` — built from vector hits via `RetrievedPoint.from_vector_hit(hit, turn)`.
+
+### `ConversationState`
+
+Module path: `ianuacare.core.chatbot.chatbot`
+
+Mutable session cache:
+
+- `context: list[Message]` — transcript with roles; optional initial `system` message.
+- `summary: str` — compressed history when size limits trigger.
+- `retrieved_pool: list[RetrievedPoint]` — accumulated vector hits across turns (in-memory only).
+- `turn_index: int` — completed user/assistant pair count.
+
+Methods include `merge_and_rerank(...)`, `prune_pool(...)`, `append_turn(...)`, `total_chars()`.
+
+### `Chatbot`
+
+Module path: `ianuacare.core.chatbot.chatbot`
+
+- Constructor: `reader: Reader`, `writer: Writer`, `llm: LLMModel`, keyword-only `collection`, `filters`, optional `top_k`, `score_threshold`, `rerank_top_k`, `score_decay`, `pool_max_size`, `max_context_chars`, `system_prompt`, `max_retries`, `retry_base_delay`.
+- `state: ConversationState` — public session handle.
+- `inference(query, query_vector, context_request: RequestContext) -> str` — synchronous turn.
+- `ainference(...) -> str` — async turn (`read_vector_search` runs in a thread pool; `llm.arun` with async retry).
+- `astream(...) -> AsyncIterator[str]` — stream assistant fragments, then finalize with `finalize_stream_text`, then update state once (same atomicity rules as sync).
+
+Retrieval uses `Reader.read_vector_search` (requires `filters["level"]` in `text` / `sentence` / `words`). Cross-turn reranking merges new hits with `retrieved_pool`, dedupes by `id`, applies decay on points from earlier turns only, keeps top `rerank_top_k`. State is updated **only after** a successful LLM response. `Writer.write_log` receives a **non-PHI** JSON line (turn index and content lengths only by default).
 
 ## Config
 

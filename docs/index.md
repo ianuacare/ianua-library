@@ -17,6 +17,7 @@ information (PHI) into logs.
 | Document | Description |
 |----------|-------------|
 | [Architecture](architecture.md) | Components, relationships, data flow |
+| [RAG chatbot](chatbot.md) | `Chatbot`, cross-turn retrieval pool, sync/async/stream |
 | [Getting started](getting-started.md) | Install, minimal example |
 | [Application integration flow](application-integration-flow.md) | End-to-end app wiring for model/CRUD/audio/vector flows |
 | [Audio transcription and diarization](audio-diarization.md) | `ianuacare.ai.models.inference` + providers/normalizer, pluggable ASR and session artifacts |

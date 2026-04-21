@@ -54,7 +54,7 @@ flowchart LR
 
 | Layer | Responsibility | Main modules |
 |-------|----------------|--------------|
-| **Core** | Domain models, business flow, errors, auth, orchestration and pipeline logic. | `ianuacare.core.models`, `ianuacare.core.pipeline`, `ianuacare.core.orchestration`, `ianuacare.core.auth`, `ianuacare.core.audit`, `ianuacare.core.config`, `ianuacare.core.logging`, `ianuacare.core.exceptions` |
+| **Core** | Domain models, business flow, errors, auth, orchestration, pipeline logic, optional RAG chat orchestration. | `ianuacare.core.models`, `ianuacare.core.pipeline`, `ianuacare.core.orchestration`, `ianuacare.core.chatbot`, `ianuacare.core.auth`, `ianuacare.core.audit`, `ianuacare.core.config`, `ianuacare.core.logging`, `ianuacare.core.exceptions` |
 | **AI** | Unified model/provider/normalizer hierarchy and speech pipeline. | `ianuacare.ai.models`, `ianuacare.ai.models.inference`, `ianuacare.ai.models.normalizer`, `ianuacare.ai.providers`, `ianuacare.ai.parsers` |
 | **Infrastructure** | External adapters and persistence implementations. | `ianuacare.infrastructure.storage`, `ianuacare.infrastructure.auth`, `ianuacare.infrastructure.cache`, `ianuacare.infrastructure.encryption` |
 
@@ -63,6 +63,7 @@ flowchart LR
 ```text
 src/ianuacare/
   core/
+    chatbot/
   ai/
     models/
       inference/
@@ -79,7 +80,7 @@ src/ianuacare/
 
 ## Relationships (from the class diagram)
 
-- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`, optional `VectorDatabaseClient`. `Reader` holds `DatabaseClient`, optional `BucketClient`, optional `VectorDatabaseClient`. `Orchestrator` holds `InputDataParser`, `OutputDataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`; `Transcription`/`LLMModel` hold `ModelOutNormalizer`; `DiarizationModel` composes transcription + parsers + embedder + clusterer.
+- **Composition**: `Pipeline` holds `DataManager`, `DataValidator`, `Writer`, `Reader`, `Orchestrator`, `AuditService`. `Writer` holds `DatabaseClient`, `BucketClient`, optional `EncryptionService`, optional `VectorDatabaseClient`. `Reader` holds `DatabaseClient`, optional `BucketClient`, optional `VectorDatabaseClient`. `Orchestrator` holds `InputDataParser`, `OutputDataParser`, a `dict[str, BaseAIModel]`, optional `CacheClient`. `Chatbot` holds `Reader`, `Writer`, `LLMModel`, and `ConversationState` (message history, rolling summary, pooled retrieval hits). `AuthService` holds `UserRepository`. `CognitoLoginService` composes `CognitoPasswordAuthenticator` (infrastructure) to perform `USER_PASSWORD_AUTH`, then callers typically pass the access token to `AuthService` with `CognitoUserRepository`. `CognitoRegistrationService` composes `CognitoRegistrationClient` for `SignUp` / `ConfirmSignUp`. `CognitoAccountService` composes `CognitoAccountClient` for password recovery, `GlobalSignOut`, `ChangePassword`, and `UpdateUserAttributes`. `NLPModel` holds `AIProvider`; `Transcription`/`LLMModel` hold `ModelOutNormalizer`; `DiarizationModel` composes transcription + parsers + embedder + clusterer.
 - **Dependency**: most services accept `DataPacket` and `RequestContext` per call (no long-lived coupling).
 - **Inheritance**: `NLPModel` extends `BaseAIModel`; concrete errors extend `IanuacareError`.
 

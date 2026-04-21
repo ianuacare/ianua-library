@@ -37,6 +37,7 @@ nav:
   - Application integration flow: application-integration-flow.md
   - Audio transcription and diarization: audio-diarization.md
   - Architecture: architecture.md
+  - RAG chatbot: chatbot.md
   - API reference: api-reference.md
   - Preconfigurations: preconfigurations.md
   - Extending: extending.md
