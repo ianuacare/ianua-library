@@ -217,7 +217,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
 - `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
 - `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
-- `LabelClusterer.run(payload) -> dict` — generic label mapping clusterer. Expects `vectors` and `label_clusters` in payload, clusters vectors in original space, maps each cluster to the nearest label prototype (built via `TextEmbedder`), and returns `labels`, `assigned_labels`, `cluster_to_label`, plus PCA visualization fields (`projected_vectors`, `explained_variance_ratio`).
+- `LabelClusterer.run(payload) -> dict` — generic label mapping clusterer. Expects `vectors` and `label_clusters` in payload (optional aligned `texts` and `point_ids` per vector row), clusters vectors in original space, maps each cluster to the nearest label prototype (built via `TextEmbedder`), and returns `labels`, `assigned_labels`, `cluster_to_label`, PCA visualization fields (`projected_vectors`, `explained_variance_ratio`), plus echoed `texts` and `point_ids` (defaults: empty strings and `null` ids when omitted).
 - `RankedLabelClusterer.run(payload) -> dict` — generic label mapping clusterer with ranked output. Expects `vectors`, `label_clusters`, optional `texts`, and optional `num_clusters`; returns `labels`, `assigned_labels`, `cluster_to_label`, and `ranked_clusters` sorted by numerosity with `count`, `percentage`, `examples` (up to 5), and optional `keywords`.
 
 ### Normalizer (`ianuacare.ai.models.normalizer`)

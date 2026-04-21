@@ -208,7 +208,7 @@ sequenceDiagram
 |---|---|---|
 | `"llm"` | `{"text": "Testo da elaborare..."}` | `{"text": "...", "key_points": [...]}` |
 | `"diarization"` | `{"audio_path": "/path/file.wav", "num_speakers": 2, "language": "it"}` | `{"raw_transcription": "...", "segments": [...], "speakers": [...]}` |
-| `"label_clusterer"` | `{"vectors": [[...], [...], ...], "label_clusters": {"my_label": ["anchor1", "anchor2"]}}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "projected_vectors": [...], "explained_variance_ratio": [...]}` |
+| `"label_clusterer"` | `{"vectors": [[...], [...], ...], "label_clusters": {"my_label": ["anchor1", "anchor2"]}, "texts": ["...", ...]?, "point_ids": [...]?}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "projected_vectors": [...], "explained_variance_ratio": [...], "texts": [...], "point_ids": [...]}` |
 | `"ranked_label_clusterer"` | `{"vectors": [[...], ...], "texts": ["...", ...], "label_clusters": {"my_label": ["anchor1"]}, "num_clusters": 8}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "ranked_clusters": [{"label": "...", "count": 0, "percentage": 0.0, "examples": [...], "keywords": [...]}]}` |
 | `"nlp"` (o altro) | Qualsiasi dizionario | Dipende dal provider configurato |
 
