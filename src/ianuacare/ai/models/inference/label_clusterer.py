@@ -38,7 +38,7 @@ class LabelClusterer(BaseAIModel):
                 "cluster_to_label": {},
                 "projected_vectors": [],
                 "explained_variance_ratio": [],
-                "texts": texts, #TO DO: forse non c'è coglione
+                "texts": texts,
                 "point_ids": point_ids,
             }
 

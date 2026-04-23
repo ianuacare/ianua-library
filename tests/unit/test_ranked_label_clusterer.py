@@ -63,6 +63,28 @@ def test_run_returns_ranked_clusters_and_examples() -> None:
     assert 0.0 <= result["ranked_clusters"][0]["percentage"] <= 1.0
     assert len(result["ranked_clusters"][0]["examples"]) <= 5
     assert isinstance(result["ranked_clusters"][0]["keywords"], list)
+    assert result["texts"] == payload["texts"]
+    assert result["point_ids"] == [None, None, None, None, None]
+
+
+def test_run_echoes_point_ids() -> None:
+    model = RankedLabelClusterer(text_embedder=_FakeTextEmbedder(), random_state=0)
+    payload = {
+        "vectors": [
+            [0.0, 0.2, 0.0],
+            [4.9, 5.0, 5.1],
+        ],
+        "texts": ["a", "b"],
+        "point_ids": ["p-0", 99],
+        "num_clusters": 2,
+        "label_clusters": LABEL_CLUSTERS,
+    }
+
+    result = model.run(payload)
+
+    assert result["texts"] == ["a", "b"]
+    assert result["point_ids"] == ["p-0", 99]
+    assert len(result["labels"]) == 2
 
 
 @pytest.mark.parametrize(
@@ -80,6 +102,13 @@ def test_run_returns_ranked_clusters_and_examples() -> None:
         {"vectors": [[1.0, 2.0]], "label_clusters": {}},
         {"vectors": [[1.0, 2.0]], "label_clusters": {"x": []}},
         {"vectors": [[1.0, 2.0]], "label_clusters": LABEL_CLUSTERS, "stopwords": "bad"},
+        {
+            "vectors": [[1.0, 2.0], [1.0, 2.0]],
+            "texts": ["x", "y"],
+            "point_ids": [1],
+            "label_clusters": LABEL_CLUSTERS,
+        },
+        {"vectors": [[1.0, 2.0]], "label_clusters": LABEL_CLUSTERS, "point_ids": "bad"},
     ],
 )
 def test_run_rejects_invalid_payload(payload: Any) -> None:

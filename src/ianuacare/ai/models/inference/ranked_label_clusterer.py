@@ -48,7 +48,11 @@ _DEFAULT_STOPWORDS = {
 
 
 class RankedLabelClusterer(BaseAIModel):
-    """Cluster vectors, map labels, and rank clusters by numerosity."""
+    """Cluster vectors, map labels, and rank clusters by numerosity.
+
+    Optional payload key ``point_ids`` aligns with ``vectors`` (like ``texts``) and is
+    echoed in the result (default: ``None`` per row when omitted).
+    """
 
     def __init__(
         self,
@@ -63,7 +67,7 @@ class RankedLabelClusterer(BaseAIModel):
         self._max_keywords = max_keywords
 
     def run(self, payload: Any) -> dict[str, Any]:
-        vectors, texts = self._extract_payload(payload)
+        vectors, texts, point_ids = self._extract_payload(payload)
         label_clusters = self._extract_label_clusters(payload)
         stopwords = self._extract_stopwords(payload)
         n_clusters = self._resolve_n_clusters(payload, len(vectors), len(label_clusters))
@@ -77,9 +81,11 @@ class RankedLabelClusterer(BaseAIModel):
             "assigned_labels": assigned_labels,
             "cluster_to_label": cluster_to_label,
             "ranked_clusters": ranked_clusters,
+            "texts": texts,
+            "point_ids": point_ids,
         }
 
-    def _extract_payload(self, payload: Any) -> tuple[list[list[float]], list[str]]:
+    def _extract_payload(self, payload: Any) -> tuple[list[list[float]], list[str], list[Any]]:
         if not isinstance(payload, Mapping):
             raise ValidationError("ranked_label_clusterer payload must be a mapping")
         raw_vectors = payload.get("vectors")
@@ -112,7 +118,18 @@ class RankedLabelClusterer(BaseAIModel):
             raise ValidationError("texts length must match vectors length")
         if not texts:
             texts = [""] * len(vectors)
-        return vectors, texts
+
+        raw_ids = payload.get("point_ids")
+        if raw_ids is None:
+            point_ids = [None] * len(vectors)
+        else:
+            if not isinstance(raw_ids, list):
+                raise ValidationError("point_ids must be a list when provided")
+            if len(raw_ids) != len(vectors):
+                raise ValidationError("point_ids length must match vectors length")
+            point_ids = list(raw_ids)
+
+        return vectors, texts, point_ids
 
     def _extract_label_clusters(self, payload: Any) -> dict[str, list[str]]:
         if not isinstance(payload, Mapping):
