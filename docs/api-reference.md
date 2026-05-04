@@ -157,22 +157,55 @@ Module path: `ianuacare.core.pipeline`
 ### `DataValidator`
 
 - `validate(packet: DataPacket) -> DataPacket` — sets `validated_data`; raises `ValidationError` if `raw_data` is missing (unless `allow_none_raw=True`).
+- `validate_bucket_payload(value, *, content_type, operation)` — for bucket flows (`audio` / `text`): `prepare_upload`, `upload_direct`, `retrieve`.
 
 ### `Pipeline`
 
-- Constructor now requires: `data_manager`, `validator`, `writer`, `reader`, `orchestrator`, `audit_service`.
-- `run(input_data, context: RequestContext) -> DataPacket` — backward-compatible alias of `run_model`.
-- `run_model(input_data, context: RequestContext) -> DataPacket` — full model flow (`collect -> validate -> write_raw -> orchestrate -> write_processed -> write_result`).
-- `run_crud(operation, input_data, context: RequestContext) -> DataPacket` — CRUD flow:
+Compatibility facade composing `PipelineModel` (inference) and `PipelineDatabase` (storage). Both can be accessed directly via `pipeline.model` and `pipeline.database`, or constructed standalone.
+
+- Constructor: `data_manager`, `validator`, `writer`, `reader`, `orchestrator`, `audit_service`. Optional keyword-only `storage_input_parser`, `storage_output_parser` for custom storage parsers.
+- `model -> PipelineModel`, `database -> PipelineDatabase`.
+- `run(input_data, context) -> DataPacket` — backward-compatible alias of `run_model`.
+- `run_model(...)` / `run_crud(...)` / `run_vector(...)` / `run_bucket(...)` — delegate to `PipelineModel` or `PipelineDatabase`.
+- `run_audio(operation, input_data, context)` — convenience alias for `run_bucket(..., content_type="audio")` (use `stack.pipeline.database.run_bucket` if you call `PipelineDatabase` directly without the facade).
+
+### `PipelineModel`
+
+- Constructor: `data_manager`, `validator`, `writer`, `orchestrator`, `audit_service`.
+- `run_model(input_data, context: RequestContext) -> DataPacket` — full inference flow (`collect -> validate -> write_raw -> orchestrate -> write_processed -> write_result`). Persists raw, processed and result artifacts (DB + S3).
+
+### `PipelineDatabase`
+
+- Constructor: `data_manager`, `validator`, `writer`, `reader`, `audit_service`. Keyword-only: `input_parser: StorageInputParser | None`, `output_parser: StorageOutputParser | None`, `embed_text_fn: Callable[[str, RequestContext], list[float]] | None` (required for vector `search` with `prompt`).
+- `run_crud(operation, input_data, context) -> DataPacket` — CRUD flow:
   - write ops (`create`, `update`, `delete`) use `Writer`
   - read ops (`read_one`, `read_many`) use `Reader`
   - result is set in `packet.processed_data` consistently.
-- `run_vector(operation, input_data, context: RequestContext) -> DataPacket` — vector flow:
+- `run_vector(operation, input_data, context) -> DataPacket` — vector flow:
   - write ops: `upsert` / `delete` use `Writer`
   - read ops: `search` and `scroll` use `Reader`
-  - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via `Orchestrator.embed_text`)
+  - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via the injected `embed_text_fn`, defaulted to `Orchestrator.embed_text` by `create_stack`)
   - `search`: `filters.level` is required (`text`, `sentence`, `words`)
   - `scroll`: lists all points in the collection (paginated internally); optional `filters` for exact-match payload fields; with `QdrantDatabaseClient`, uses the official client's `scroll` API until all pages are consumed
+- `run_bucket(operation, input_data, context, *, content_type: "audio" | "text", bucket_name: str | None = None) -> DataPacket` — object storage + DB metadata for **audio** (`.wav` / `.mp3`) or **text** (`.txt` / `.md`). Operations: `prepare_upload`, `upload_direct`, `retrieve`. Audit events: `pipeline_bucket_started` / `pipeline_bucket_completed` (with `content_type` in details). If `bucket_name` is set, it is stored on `packet.metadata["bucket_name"]` for custom routing.
+
+### `StorageInputParser` / `StorageOutputParser`
+
+Hooks invoked by `PipelineDatabase` around storage I/O, distinct from the model-side `InputDataParser` / `OutputDataParser`:
+
+- `StorageInputParser.prepare_for_persist(packet, *, channel, operation, context)` — called before write ops on `crud`, `vector`, and `bucket` channels (bucket replaces the legacy `audio`-only channel for `run_bucket`).
+- `StorageOutputParser.after_read(packet, *, channel, operation, context)` — called after read ops; `packet.processed_data` carries the read result.
+- `PassthroughStorageInputParser` / `PassthroughStorageOutputParser` — default no-op implementations.
+
+### Storage `Writer` / `Reader` (bucket)
+
+- `Writer.write_bucket_upload_reference(..., content_type: "audio" | "text")` — metadata + presigned upload URL; object keys use a `.../audio/...` or `.../text/...` segment. `Writer.write_audio_*` delegates with `content_type="audio"`.
+- `Writer.write_bucket_direct_upload(..., content_type=...)` — upload bytes then persist metadata.
+- `Reader.read_bucket(...)` — read one record and attach `download_url` when the bucket supports presigned GET. `Reader.read_audio` delegates to `read_bucket`.
+
+### `InMemoryBucketClient`
+
+- Provides stub `generate_presigned_upload_url` / `generate_presigned_download_url` so `prepare_upload` / `retrieve` flows work in tests without S3.
 
 ## Orchestration
 
@@ -381,3 +414,4 @@ Module path: `ianuacare.presets`
 
 - Factory that wires `AuthService`, `Writer`, `Reader`, `Orchestrator`, and `Pipeline` from injected adapters.
 - Accepts optional `vector_database: VectorDatabaseClient | None` and injects it into both `Writer` and `Reader`.
+- Returned `IanuacareStack` exposes `pipeline` (compat facade), `pipeline_model` (`PipelineModel`), and `pipeline_database` (`PipelineDatabase`) for direct access; the database pipeline is wired with `embed_text_fn=orchestrator.embed_text` so vector search by `prompt` keeps working.

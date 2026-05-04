@@ -337,26 +337,29 @@ print(packet.processed_data)  # [{"patient_id": "p-1001", ...}, ...]
 
 ---
 
-## 5 — Audio su S3: `pipeline.run_audio(...)`
+## 5 — File su bucket (S3): `pipeline.run_bucket(...)` e `run_audio`
 
-Per preparare upload audio (wav/mp3) e fare retrieval dei riferimenti da DB +
-S3, l'app usa `pipeline.run_audio(operation, input_data, context)`.
+Per preparare upload e fare retrieval di riferimenti da DB + object storage, usa
+`pipeline.run_bucket(operation, input_data, context, content_type="audio" | "text")`.
+Per compatibilità, `pipeline.run_audio(operation, input_data, context)` equivale a
+`run_bucket(..., content_type="audio")`.
 
 Questo flusso **non usa l'Orchestrator**, **non esegue inferenza AI** e salva
-metadati audio su DB con chiavi S3 ricostruibili.
+metadati su DB con chiavi S3 ricostruibili (`.../audio/...` per wav/mp3,
+`.../text/...` per `.txt`/`.md`).
 
 ### Come chiamarlo
 
 | `operation` | Campi richiesti in `input_data` | Output |
 |---|---|---|
-| `"prepare_upload"` | `collection`, `filename` (`.wav` o `.mp3`) | Metadata audio + `upload_url` presigned PUT |
-| `"upload_direct"` | `collection`, `filename`, `content` (bytes) **oppure** `content_base64` | Upload S3 effettuato dalla libreria + metadata DB |
-| `"retrieve"` | `collection`, `lookup_field`, `lookup_value` | Metadata audio + `download_url` presigned GET |
+| `"prepare_upload"` | `collection`, `filename` (audio: `.wav`/`.mp3`; text: `.txt`/`.md`) | Metadata + `upload_url` presigned PUT |
+| `"upload_direct"` | `collection`, `filename`, `content` (bytes/str) **oppure** `content_base64` | Upload oggetto + metadata DB |
+| `"retrieve"` | `collection`, `lookup_field`, `lookup_value` | Metadata record + `download_url` presigned GET |
 
 ### Regole principali
 
 - Upload single-object: il file viene caricato su S3 intero (no multipart/chunk upload).
-- Object key deterministico: `{product}/{user_id}/audio/{request_id_o_audio_id}.{ext}`.
+- Object key deterministico: `{product}/{user_id}/{audio|text}/{request_id_o_id}.{ext}` (segment in base al `content_type`).
 - Retrieval DB-first: prima si legge il record dal DB, poi si genera la URL di download.
 - Con `upload_direct` il caricamento effettivo su S3 avviene dentro la pipeline (`bucket.upload(...)`).
 
@@ -523,7 +526,8 @@ flowchart LR
     → packet.inference_result"]
     Choice -->|"CRUD dati"| RunCrud["run_crud(operation, data, context)
     → packet.processed_data"]
-    Choice -->|"Audio S3"| RunAudio["run_audio(operation, data, context)
+    Choice -->|"Bucket S3"| RunBucket["run_bucket(op, data, context
+    + content_type)
     → packet.processed_data"]
     Choice -->|"Vector DB"| RunVector["run_vector(operation, data, context)
     → packet.processed_data"]
@@ -536,6 +540,6 @@ flowchart LR
 | **Contesto** | Crea `RequestContext` con `model_key` | — |
 | **Inferenza** | Chiama `run_model(input_data, context)` | Valida, salva, seleziona modello, parsa, inferisce, salva risultato |
 | **CRUD** | Chiama `run_crud(op, data, context)` | Valida e esegue l'operazione su DB |
-| **Audio S3** | Chiama `run_audio(op, data, context)` | Valida payload audio, salva metadata DB, genera URL presigned upload/download |
+| **Bucket S3** | Chiama `run_bucket(op, data, context, content_type=audio|text)` (o `run_audio` per solo audio) | Valida payload, salva metadata DB, upload/download presigned |
 | **Vector DB** | Chiama `run_vector(op, data, context)` | Valida payload vector, upsert/search/scroll/delete su vector client |
 | **Errori** | Cattura eccezioni e mappa a HTTP status | Alza eccezioni tipizzate |
