@@ -104,12 +104,12 @@ def test_pipeline_run_crud_write_and_read(db, bucket, context) -> None:
         {"collection": "patients", "lookup_field": "id", "lookup_value": "p1"},
         context,
     )
-    assert read_one.processed_data == {
-        "id": "p1",
-        "name": "Ada Lovelace",
-        "product": context.product,
-        "user_id": context.user.user_id,
-    }
+    assert read_one.processed_data["id"] == "p1"
+    assert read_one.processed_data["name"] == "Ada Lovelace"
+    assert read_one.processed_data["product"] == context.product
+    assert read_one.processed_data["user_id"] == context.user.user_id
+    assert "created_at" in read_one.processed_data
+    assert "updated_at" in read_one.processed_data
 
     read_many = pipe.run_crud(
         "read_many",

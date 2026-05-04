@@ -21,5 +21,7 @@ def test_create_stack_wires_core_services() -> None:
     )
     assert stack.auth_service is not None
     assert stack.pipeline is not None
+    assert stack.pipeline_model is stack.pipeline.model
+    assert stack.pipeline_database is stack.pipeline.database
     assert stack.orchestrator is not None
     assert stack.writer is not None

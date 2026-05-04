@@ -29,12 +29,13 @@ def test_writer_crud_write_methods(db, bucket) -> None:
 
     created = w.write_create("patients", {"id": "p1", "name": "Ada"}, ctx)
     assert created["ok"] is True
-    assert db.read_one("patients", key="id", value="p1") == {
-        "id": "p1",
-        "name": "Ada",
-        "product": "prod",
-        "user_id": "u1",
-    }
+    record_after_create = db.read_one("patients", key="id", value="p1")
+    assert record_after_create["id"] == "p1"
+    assert record_after_create["name"] == "Ada"
+    assert record_after_create["product"] == "prod"
+    assert record_after_create["user_id"] == "u1"
+    assert record_after_create["created_at"] == record_after_create["updated_at"]
+    initial_created_at = record_after_create["created_at"]
 
     updated = w.write_update(
         "patients",
@@ -44,12 +45,10 @@ def test_writer_crud_write_methods(db, bucket) -> None:
         context=ctx,
     )
     assert updated["updated"] == 1
-    assert db.read_one("patients", key="id", value="p1") == {
-        "id": "p1",
-        "name": "Ada Lovelace",
-        "product": "prod",
-        "user_id": "u1",
-    }
+    record_after_update = db.read_one("patients", key="id", value="p1")
+    assert record_after_update["name"] == "Ada Lovelace"
+    assert record_after_update["created_at"] == initial_created_at
+    assert isinstance(record_after_update["updated_at"], str)
 
     deleted = w.write_delete(
         "patients",
