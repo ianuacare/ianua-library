@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
 from ianuacare.ai.text import clean_text, split_sentences, split_words
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.packet import DataPacket
+
+
+def _render_value(value: Any) -> str:
+    """Stable string rendering for prompt sections (JSON for structured data)."""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except TypeError:
+        return str(value)
 
 
 class InputDataParser:
@@ -25,16 +36,7 @@ class InputDataParser:
 
         key = model_key.strip().lower()
         if key == "llm":
-            if not isinstance(validated, dict):
-                raise ValidationError("validated_data must be a mapping for llm")
-            text = validated.get("text")
-            if not isinstance(text, str) or not text.strip():
-                raise ValidationError("validated_data.text is required for llm")
-            out: dict[str, Any] = {"prompt": "", "text": text}
-            mt = validated.get("model_type")
-            if isinstance(mt, str) and mt.strip():
-                out["model_type"] = mt.strip().lower()
-            return out
+            return self._parse_llm_input(validated)
 
         if key == "diarization":
             if not isinstance(validated, dict):
@@ -54,6 +56,85 @@ class InputDataParser:
             return self._parse_text_embedder(validated)
 
         return validated
+
+    def _parse_llm_input(self, validated: Any) -> dict[str, Any]:
+        """Build the LLM payload, branching on which inputs are present.
+
+        Variants (in order of richness):
+
+        - ``text`` only: pass-through, ``prompt`` is empty.
+        - ``text + context``: ``prompt`` becomes ``build_prompt(text, context)``.
+        - ``text + context + schema``: schema is appended as JSON-Schema instructions.
+        - Any extra key (``examples``, ``persona``, ``constraints``, ...) is appended
+          to the prompt as a labelled section, so providers see a single coherent
+          ``prompt`` string while the original ``text`` remains untouched.
+        """
+        if not isinstance(validated, dict):
+            raise ValidationError("validated_data must be a mapping for llm")
+        text = validated.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ValidationError("validated_data.text is required for llm")
+
+        ctx = validated.get("context")
+        schema = validated.get("schema")
+        extras_raw = validated.get("prompt_extras")
+        extras: Mapping[str, Any] | None = (
+            extras_raw if isinstance(extras_raw, Mapping) else None
+        )
+        prompt = self.build_prompt(text=text, context=ctx, schema=schema, extras=extras)
+
+        out: dict[str, Any] = {"prompt": prompt, "text": text}
+        if ctx is not None:
+            out["context"] = ctx
+        if schema is not None:
+            out["schema"] = schema
+        mt = validated.get("model_type")
+        if isinstance(mt, str) and mt.strip():
+            out["model_type"] = mt.strip().lower()
+        return out
+
+    @staticmethod
+    def build_prompt(
+        *,
+        text: str,
+        context: Any = None,
+        schema: Any = None,
+        extras: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Build a single prompt string from text + optional context, schema, and extras.
+
+        Returns ``""`` when only ``text`` is provided so existing flows (no
+        context/schema) are unchanged. Otherwise stitches sections labelled
+        ``[CONTEXT]``, ``[SCHEMA]``, ``[<EXTRA_KEY>]`` followed by a final
+        ``[QUESTION]`` block carrying ``text``.
+
+        ``extras`` should be a small mapping of additional prompt-shaping
+        variables (e.g. ``{"persona": "...", "constraints": "..."}``); pass
+        ``validated["prompt_extras"]`` from the caller. Unrelated keys present
+        in ``validated`` are intentionally ignored.
+        """
+        has_context = context is not None
+        has_schema = schema is not None
+        extra_items: list[tuple[str, Any]] = []
+        if isinstance(extras, Mapping):
+            for key, value in extras.items():
+                if not isinstance(key, str) or value is None:
+                    continue
+                extra_items.append((key, value))
+
+        if not has_context and not has_schema and not extra_items:
+            return ""
+
+        sections: list[str] = []
+        if has_context:
+            sections.append(f"[CONTEXT]\n{_render_value(context)}")
+        if has_schema:
+            sections.append(f"[SCHEMA]\n{_render_value(schema)}")
+        for key, value in extra_items:
+            label = key.upper().replace("-", "_")
+            sections.append(f"[{label}]\n{_render_value(value)}")
+        sections.append(f"[QUESTION]\n{text}")
+        return "\n\n".join(sections)
 
     @staticmethod
     def _parse_text_embedder(validated: Any) -> dict[str, Any]:
@@ -124,7 +205,7 @@ class OutputDataParser:
         return packet
 
     def _parse_llm(self, result: Any, *, schema: Mapping[str, Any] | None) -> Any:
-        """Branch for ``llm``: when a schema is provided, validate required fields and type coherence."""
+        """Branch for ``llm``: validate required fields and type coherence vs schema."""
         if schema is None:
             return result
         self._check_required_fields(result, schema)
@@ -178,7 +259,7 @@ class OutputDataParser:
 
     @staticmethod
     def _check_schema_coherence(result: Any, schema: Mapping[str, Any]) -> None:
-        """Validate top-level ``properties.<name>.type`` against actual Python types of the result."""
+        """Validate top-level ``properties.<name>.type`` vs actual Python types."""
         properties = schema.get("properties")
         if properties is None:
             return
