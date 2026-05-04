@@ -77,6 +77,9 @@ packages = ["ianuacare"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore:Pipeline is deprecated:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["ianuacare"]
