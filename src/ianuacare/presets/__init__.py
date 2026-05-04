@@ -10,7 +10,13 @@ from ianuacare.core.auth import AuthService
 from ianuacare.core.config.env import EnvConfigService
 from ianuacare.core.logging import StructuredLogger
 from ianuacare.core.orchestration import InputDataParser, Orchestrator, OutputDataParser
-from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
+from ianuacare.core.pipeline import (
+    DataManager,
+    DataValidator,
+    Pipeline,
+    PipelineDatabase,
+    PipelineModel,
+)
 from ianuacare.infrastructure.cache import CacheClient
 from ianuacare.infrastructure.encryption import EncryptionService
 from ianuacare.infrastructure.storage import (
@@ -28,6 +34,8 @@ class IanuacareStack:
 
     auth_service: AuthService
     pipeline: Pipeline
+    pipeline_model: PipelineModel
+    pipeline_database: PipelineDatabase
     writer: Writer
     orchestrator: Orchestrator
     logger: StructuredLogger
@@ -66,10 +74,13 @@ def create_stack(
         reader=Reader(database, vector_client=vector_database),
         orchestrator=orchestrator,
         audit_service=AuditService(database),
+        _suppress_deprecation=True,
     )
     return IanuacareStack(
         auth_service=auth_service,
         pipeline=pipeline,
+        pipeline_model=pipeline.model,
+        pipeline_database=pipeline.database,
         writer=writer,
         orchestrator=orchestrator,
         logger=logger or StructuredLogger(),

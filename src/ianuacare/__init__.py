@@ -46,7 +46,18 @@ from ianuacare.core.models import (
     UserProfile,
 )
 from ianuacare.core.orchestration import InputDataParser, Orchestrator, OutputDataParser
-from ianuacare.core.pipeline import DataManager, DataValidator, Pipeline
+from ianuacare.core.pipeline import (
+    BucketContentType,
+    DataManager,
+    DataValidator,
+    PassthroughStorageInputParser,
+    PassthroughStorageOutputParser,
+    Pipeline,
+    PipelineDatabase,
+    PipelineModel,
+    StorageInputParser,
+    StorageOutputParser,
+)
 from ianuacare.infrastructure import (
     CacheClient,
     EncryptionService,
@@ -82,6 +93,7 @@ __all__ = [
     "CognitoRegistrationService",
     "AuthorizationError",
     "BaseAIModel",
+    "BucketContentType",
     "BucketClient",
     "CacheClient",
     "ConfigService",
@@ -104,7 +116,11 @@ __all__ = [
     "OrchestrationError",
     "Orchestrator",
     "OutputDataParser",
+    "PassthroughStorageInputParser",
+    "PassthroughStorageOutputParser",
     "Pipeline",
+    "PipelineDatabase",
+    "PipelineModel",
     "PostgresDatabaseClient",
     "QdrantDatabaseClient",
     "Reader",
@@ -114,6 +130,8 @@ __all__ = [
     "SpeechTranscriptionProvider",
     "SpectralParser",
     "S3BucketClient",
+    "StorageInputParser",
+    "StorageOutputParser",
     "StructuredLogger",
     "StorageError",
     "TextEmbedder",

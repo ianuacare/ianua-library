@@ -10,7 +10,6 @@ from ianuacare.infrastructure.storage.bucket import BucketClient
 from ianuacare.infrastructure.storage.database import DatabaseClient
 from ianuacare.infrastructure.storage.vector import VectorDatabaseClient
 
-
 _VALID_LEVELS: frozenset[str] = frozenset({"text", "sentence", "words"})
 
 
@@ -109,7 +108,7 @@ class Reader:
         with_payload: bool = True,
         context: RequestContext,
     ) -> list[dict[str, Any]]:
-        """List all points in the vector collection via backend ``scroll`` (paginated internally)."""
+        """List all points in the vector collection (backend ``scroll``, paginated)."""
         if self._vector is None:
             raise StorageError("vector_client is not configured on Reader")
         _ = context
@@ -128,7 +127,7 @@ class Reader:
         except Exception as exc:
             raise StorageError("Failed to scroll vector points") from exc
 
-    def read_audio(
+    def read_bucket(
         self,
         collection: str,
         *,
@@ -136,7 +135,7 @@ class Reader:
         lookup_value: Any,
         context: RequestContext,
     ) -> dict[str, Any] | None:
-        """Read one audio record and enrich it with a presigned download URL."""
+        """Read one bucket-backed record and enrich it with a presigned download URL."""
         try:
             _ = context
             record = self._db.read_one(collection, key=lookup_field, value=lookup_value)
@@ -152,4 +151,20 @@ class Reader:
             download_url = str(generator(object_key, expires_in=expires_in))
             return {**record, "download_url": download_url}
         except Exception as exc:
-            raise StorageError("Failed to read audio record") from exc
+            raise StorageError("Failed to read bucket record") from exc
+
+    def read_audio(
+        self,
+        collection: str,
+        *,
+        lookup_field: str,
+        lookup_value: Any,
+        context: RequestContext,
+    ) -> dict[str, Any] | None:
+        """Read one audio record and enrich it with a presigned download URL."""
+        return self.read_bucket(
+            collection,
+            lookup_field=lookup_field,
+            lookup_value=lookup_value,
+            context=context,
+        )

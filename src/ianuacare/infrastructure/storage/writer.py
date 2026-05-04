@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from ianuacare.core.exceptions.errors import StorageError, ValidationError
 from ianuacare.core.models.context import RequestContext
@@ -16,10 +17,20 @@ from ianuacare.infrastructure.storage.database import DatabaseClient
 from ianuacare.infrastructure.storage.vector import VectorDatabaseClient
 
 
+def _utc_now_iso() -> str:
+    """Return UTC ``now`` as an ISO-8601 string with ``Z`` suffix (no microseconds)."""
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
 _VECTOR_FIELD_MAP: dict[str, tuple[str, str]] = {
     "text": ("text", "text_vect"),
     "sentence": ("sentence", "sentence_vect"),
     "words": ("words", "words_vect"),
+}
+
+# segment under user prefix, primary id field name, allowed extensions -> default MIME
+_BUCKET_MEDIA: dict[str, tuple[str, str, dict[str, str]]] = {
+    "audio": ("audio", "audio_id", {".wav": "audio/wav", ".mp3": "audio/mpeg"}),
+    "text": ("text", "text_id", {".txt": "text/plain", ".md": "text/markdown"}),
 }
 
 
@@ -107,12 +118,19 @@ class Writer:
         payload: dict[str, Any],
         context: RequestContext,
     ) -> dict[str, Any]:
-        """Create a CRUD record in ``collection``."""
+        """Create a CRUD record in ``collection``.
+
+        Server-side timestamps ``created_at`` and ``updated_at`` are set to
+        ``utc_now`` and are not overridable by the caller.
+        """
         try:
+            now = _utc_now_iso()
             record = {
                 **payload,
                 "product": context.product,
                 "user_id": context.user.user_id,
+                "created_at": now,
+                "updated_at": now,
             }
             return self._db.create(collection, record)
         except Exception as exc:
@@ -127,12 +145,17 @@ class Writer:
         updates: dict[str, Any],
         context: RequestContext,
     ) -> dict[str, Any]:
-        """Update CRUD records by lookup pair."""
+        """Update CRUD records by lookup pair.
+
+        Server-side ``updated_at`` is refreshed with ``utc_now`` and overrides
+        any caller-supplied value to keep the audit trail authoritative.
+        """
         try:
             enriched_updates = {
                 **updates,
                 "product": context.product,
                 "user_id": context.user.user_id,
+                "updated_at": _utc_now_iso(),
             }
             return self._db.update(
                 collection,
@@ -162,28 +185,41 @@ class Writer:
         except Exception as exc:
             raise StorageError("Failed to delete record") from exc
 
-    def write_audio_upload_reference(
+    def write_bucket_upload_reference(
         self,
         *,
         collection: str,
         payload: dict[str, Any],
         context: RequestContext,
+        content_type: Literal["audio", "text"] = "audio",
     ) -> dict[str, Any]:
-        """Persist audio metadata and return a presigned upload URL."""
+        """Persist object metadata and return a presigned upload URL.
+
+        Object keys are placed under a per-user prefix and a media segment
+        (``audio`` or ``text``) derived from ``content_type``.
+        """
         try:
+            segment, id_key, ext_mimes = _BUCKET_MEDIA[content_type]
             filename = str(payload.get("filename") or "").strip()
             if not filename:
                 raise ValueError("filename is required")
             ext = Path(filename).suffix.lower()
-            if ext not in {".wav", ".mp3"}:
-                raise ValueError("filename extension must be .wav or .mp3")
+            if ext not in ext_mimes:
+                raise ValueError(
+                    f"filename extension must be one of: {', '.join(sorted(ext_mimes))}"
+                )
 
-            audio_id = str(payload.get("audio_id") or uuid.uuid4().hex)
+            object_id = str(payload.get(id_key) or uuid.uuid4().hex)
             request_id = str(payload.get("request_id") or payload.get("meta_request_id") or "")
-            seed = request_id if request_id else audio_id
-            object_key = f"{context.product}/{context.user.user_id}/audio/{seed}{ext}"
+            seed = request_id if request_id else object_id
+            object_key = f"{context.product}/{context.user.user_id}/{segment}/{seed}{ext}"
 
-            mime_type = str(payload.get("mime_type") or self._mime_from_ext(ext))
+            default_mime = ext_mimes[ext]
+            mime_raw = payload.get("mime_type")
+            mime_type = str(mime_raw or default_mime)
+            if mime_raw is not None and mime_type not in set(ext_mimes.values()):
+                raise ValueError("mime_type does not match content_type rules")
+
             size_bytes = payload.get("size_bytes")
             upload_url = self._generate_upload_url(
                 object_key=object_key,
@@ -191,7 +227,8 @@ class Writer:
                 expires_in=int(payload.get("upload_url_expires_in") or 900),
             )
             record = {
-                "audio_id": audio_id,
+                id_key: object_id,
+                "content_type": content_type,
                 "user_id": context.user.user_id,
                 "product": context.product,
                 "status": "pending_upload",
@@ -203,8 +240,8 @@ class Writer:
                 "request_id": request_id or payload.get("meta_request_id"),
             }
             self._db.write(collection or self.COL_AUDIO, record)
-            return {
-                "audio_id": audio_id,
+            result: dict[str, Any] = {
+                id_key: object_id,
                 "bucket": record["bucket"],
                 "object_key": object_key,
                 "mime_type": mime_type,
@@ -212,28 +249,33 @@ class Writer:
                 "upload_url": upload_url,
                 "upload_url_expires_in": int(payload.get("upload_url_expires_in") or 900),
             }
+            return result
         except Exception as exc:
-            raise StorageError("Failed to prepare audio upload") from exc
+            raise StorageError("Failed to prepare bucket upload") from exc
 
-    def write_audio_direct_upload(
+    def write_bucket_direct_upload(
         self,
         *,
         collection: str,
         payload: dict[str, Any],
         context: RequestContext,
+        content_type: Literal["audio", "text"] = "audio",
     ) -> dict[str, Any]:
-        """Upload audio bytes to object storage and persist metadata."""
+        """Upload bytes to object storage and persist metadata."""
         try:
+            segment, id_key, ext_mimes = _BUCKET_MEDIA[content_type]
             filename = str(payload.get("filename") or "").strip()
             if not filename:
                 raise ValueError("filename is required")
             ext = Path(filename).suffix.lower()
-            if ext not in {".wav", ".mp3"}:
-                raise ValueError("filename extension must be .wav or .mp3")
+            if ext not in ext_mimes:
+                raise ValueError(
+                    f"filename extension must be one of: {', '.join(sorted(ext_mimes))}"
+                )
 
             content = payload.get("content")
             if isinstance(content, str):
-                body = content.encode()
+                body = content.encode("utf-8") if content_type == "text" else content.encode()
             elif isinstance(content, (bytes, bytearray)):
                 body = bytes(content)
             else:
@@ -241,15 +283,20 @@ class Writer:
             if not body:
                 raise ValueError("content is empty")
 
-            audio_id = str(payload.get("audio_id") or uuid.uuid4().hex)
+            object_id = str(payload.get(id_key) or uuid.uuid4().hex)
             request_id = str(payload.get("request_id") or payload.get("meta_request_id") or "")
-            seed = request_id if request_id else audio_id
-            object_key = f"{context.product}/{context.user.user_id}/audio/{seed}{ext}"
-            mime_type = str(payload.get("mime_type") or self._mime_from_ext(ext))
+            seed = request_id if request_id else object_id
+            object_key = f"{context.product}/{context.user.user_id}/{segment}/{seed}{ext}"
+            default_mime = ext_mimes[ext]
+            mime_raw = payload.get("mime_type")
+            mime_type = str(mime_raw or default_mime)
+            if mime_raw is not None and mime_type not in set(ext_mimes.values()):
+                raise ValueError("mime_type does not match content_type rules")
 
             blob_ref = self._bucket.upload(object_key, body)
             record = {
-                "audio_id": audio_id,
+                id_key: object_id,
+                "content_type": content_type,
                 "user_id": context.user.user_id,
                 "product": context.product,
                 "status": "uploaded",
@@ -263,7 +310,7 @@ class Writer:
             }
             self._db.write(collection or self.COL_AUDIO, record)
             return {
-                "audio_id": audio_id,
+                id_key: object_id,
                 "bucket": record["bucket"],
                 "object_key": object_key,
                 "mime_type": mime_type,
@@ -271,7 +318,37 @@ class Writer:
                 "status": record["status"],
             }
         except Exception as exc:
-            raise StorageError("Failed to upload audio directly") from exc
+            raise StorageError("Failed to upload object to bucket") from exc
+
+    def write_audio_upload_reference(
+        self,
+        *,
+        collection: str,
+        payload: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Persist audio metadata and return a presigned upload URL."""
+        return self.write_bucket_upload_reference(
+            collection=collection,
+            payload=payload,
+            context=context,
+            content_type="audio",
+        )
+
+    def write_audio_direct_upload(
+        self,
+        *,
+        collection: str,
+        payload: dict[str, Any],
+        context: RequestContext,
+    ) -> dict[str, Any]:
+        """Upload audio bytes to object storage and persist metadata."""
+        return self.write_bucket_direct_upload(
+            collection=collection,
+            payload=payload,
+            context=context,
+            content_type="audio",
+        )
 
     def write_vector_upsert(
         self,
@@ -428,8 +505,3 @@ class Writer:
     def _bucket_name(self) -> str:
         name = getattr(self._bucket, "_bucket_name", None)
         return str(name) if isinstance(name, str) and name else "unknown"
-
-    @staticmethod
-    def _mime_from_ext(ext: str) -> str:
-        return "audio/wav" if ext == ".wav" else "audio/mpeg"
-

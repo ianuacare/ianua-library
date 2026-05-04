@@ -34,3 +34,14 @@ class InMemoryBucketClient:
             raise KeyError(msg)
         return self._files[key]
 
+    def generate_presigned_upload_url(
+        self, object_key: str, *, mime_type: str, expires_in: int
+    ) -> str:
+        """Return a stable fake URL (for tests; production uses S3-style presigning)."""
+        _ = mime_type, expires_in
+        return f"inmemory:upload:{object_key}"
+
+    def generate_presigned_download_url(self, object_key: str, *, expires_in: int) -> str:
+        _ = expires_in
+        return f"inmemory:download:{object_key}"
+
