@@ -150,10 +150,15 @@ class DataValidator:
         ext = Path(filename).suffix.lower()
         mime = payload.get("mime_type")
         allowed = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".webm": "audio/webm"}
+        allowed_mimes = frozenset(
+            ("audio/wav", "audio/mpeg", "audio/webm", "audio/webm;codecs=opus")
+        )
         if ext not in allowed:
             raise ValidationError("filename must have .wav or .mp3 extension or .webm")
-        if mime is not None and mime not in ("audio/wav", "audio/mpeg", "audio/webm"):
-            raise ValidationError("mime_type must be audio/wav or audio/mpeg or audio/webm")
+        if mime is not None and mime not in allowed_mimes:
+            raise ValidationError(
+                "mime_type must be audio/wav, audio/mpeg, audio/webm, or audio/webm;codecs=opus"
+            )
         return {
             **payload,
             "mime_type": str(mime or allowed[ext]),
