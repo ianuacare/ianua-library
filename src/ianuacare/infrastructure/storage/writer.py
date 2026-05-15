@@ -304,6 +304,7 @@ class Writer:
                 raise ValueError("mime_type does not match content_type rules")
 
             blob_ref = self._bucket.upload(object_key, body)
+            col = collection or self.COL_AUDIO
             record = {
                 id_key: object_id,
                 "content_type": content_type,
@@ -318,7 +319,16 @@ class Writer:
                 "request_id": request_id or payload.get("meta_request_id"),
                 "blob": blob_ref,
             }
-            self._db.write(collection or self.COL_AUDIO, record)
+            # Upsert: a reference row may already exist from write_bucket_upload_reference
+            # (called when the client requests an upload URL before the actual PUT).
+            # Doing a plain INSERT in that case raises a duplicate-key violation on the
+            # primary key, so we UPDATE the existing row instead.
+            existing = self._db.read_one(col, key=id_key, value=object_id)
+            if existing:
+                update_fields = {k: v for k, v in record.items() if k != id_key}
+                self._db.update(col, key=id_key, value=object_id, updates=update_fields)
+            else:
+                self._db.write(col, record)
             return {
                 id_key: object_id,
                 "bucket": record["bucket"],

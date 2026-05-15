@@ -1,5 +1,7 @@
 """Writer."""
 
+import pytest
+
 from ianuacare.core.models.context import RequestContext
 from ianuacare.core.models.packet import DataPacket
 from ianuacare.core.models.user import User
@@ -57,3 +59,77 @@ def test_writer_crud_write_methods(db, bucket) -> None:
         context=ctx,
     )
     assert deleted["deleted"] == 1
+
+
+# ---------------------------------------------------------------------------
+# write_bucket_direct_upload – upsert behaviour
+# ---------------------------------------------------------------------------
+
+def test_bucket_direct_upload_inserts_when_no_reference_exists(db, bucket) -> None:
+    """Fresh direct upload (no prior reference row) must INSERT the record."""
+    w = Writer(db, bucket)
+    ctx = RequestContext(User("u1", "r", []), "prod", {})
+
+    result = w.write_bucket_direct_upload(
+        collection="audio_records",
+        payload={
+            "audio_id": "ses_abc",
+            "request_id": "ses_abc",
+            "filename": "ses_abc.wav",
+            "content": b"RIFF\x00\x00\x00\x00",
+        },
+        context=ctx,
+        content_type="audio",
+    )
+
+    assert result["status"] == "uploaded"
+    assert result["audio_id"] == "ses_abc"
+    row = db.read_one("audio_records", key="audio_id", value="ses_abc")
+    assert row is not None
+    assert row["status"] == "uploaded"
+    assert len(db.read_many("audio_records")) == 1
+
+
+def test_bucket_direct_upload_updates_when_reference_already_exists(db, bucket) -> None:
+    """When prepare_upload already created the reference row, direct upload must UPDATE
+    (not INSERT), preventing the duplicate-key violation on audio_records PRIMARY KEY."""
+    w = Writer(db, bucket)
+    ctx = RequestContext(User("u1", "r", []), "prod", {})
+
+    # Simulate what write_bucket_upload_reference does: a pending_upload row exists.
+    db.create(
+        "audio_records",
+        {
+            "audio_id": "ses_xyz",
+            "content_type": "audio",
+            "user_id": "u1",
+            "product": "prod",
+            "status": "pending_upload",
+            "filename": "ses_xyz.wav",
+            "mime_type": "audio/wav",
+            "size_bytes": None,
+            "bucket": "my-bucket",
+            "object_key": "prod/u1/audio/ses_xyz.wav",
+            "request_id": "ses_xyz",
+        },
+    )
+    assert len(db.read_many("audio_records")) == 1
+
+    result = w.write_bucket_direct_upload(
+        collection="audio_records",
+        payload={
+            "audio_id": "ses_xyz",
+            "request_id": "ses_xyz",
+            "filename": "ses_xyz.wav",
+            "content": b"RIFF\x00\x00\x00\x00",
+        },
+        context=ctx,
+        content_type="audio",
+    )
+
+    assert result["status"] == "uploaded"
+    # Exactly one row must remain — no duplicate inserted.
+    rows = db.read_many("audio_records")
+    assert len(rows) == 1
+    assert rows[0]["status"] == "uploaded"
+    assert rows[0]["size_bytes"] == len(b"RIFF\x00\x00\x00\x00")
