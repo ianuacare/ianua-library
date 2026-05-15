@@ -27,10 +27,20 @@ _VECTOR_FIELD_MAP: dict[str, tuple[str, str]] = {
     "words": ("words", "words_vect"),
 }
 
-# segment under user prefix, primary id field name, allowed extensions -> default MIME
-_BUCKET_MEDIA: dict[str, tuple[str, str, dict[str, str]]] = {
-    "audio": ("audio", "audio_id", {".wav": "audio/wav", ".mp3": "audio/mpeg"}),
-    "text": ("text", "text_id", {".txt": "text/plain", ".md": "text/markdown"}),
+# segment, primary id field, extension->default MIME, full set of allowed MIME types
+_BUCKET_MEDIA: dict[str, tuple[str, str, dict[str, str], frozenset[str]]] = {
+    "audio": (
+        "audio",
+        "audio_id",
+        {".wav": "audio/wav", ".mp3": "audio/mpeg", ".webm": "audio/webm"},
+        frozenset({"audio/wav", "audio/mpeg", "audio/webm", "audio/webm;codecs=opus"}),
+    ),
+    "text": (
+        "text",
+        "text_id",
+        {".txt": "text/plain", ".md": "text/markdown"},
+        frozenset({"text/plain", "text/markdown"}),
+    ),
 }
 
 
@@ -199,7 +209,7 @@ class Writer:
         (``audio`` or ``text``) derived from ``content_type``.
         """
         try:
-            segment, id_key, ext_mimes = _BUCKET_MEDIA[content_type]
+            segment, id_key, ext_mimes, allowed_mimes = _BUCKET_MEDIA[content_type]
             filename = str(payload.get("filename") or "").strip()
             if not filename:
                 raise ValueError("filename is required")
@@ -217,7 +227,7 @@ class Writer:
             default_mime = ext_mimes[ext]
             mime_raw = payload.get("mime_type")
             mime_type = str(mime_raw or default_mime)
-            if mime_raw is not None and mime_type not in set(ext_mimes.values()):
+            if mime_raw is not None and mime_type not in allowed_mimes:
                 raise ValueError("mime_type does not match content_type rules")
 
             size_bytes = payload.get("size_bytes")
@@ -263,7 +273,7 @@ class Writer:
     ) -> dict[str, Any]:
         """Upload bytes to object storage and persist metadata."""
         try:
-            segment, id_key, ext_mimes = _BUCKET_MEDIA[content_type]
+            segment, id_key, ext_mimes, allowed_mimes = _BUCKET_MEDIA[content_type]
             filename = str(payload.get("filename") or "").strip()
             if not filename:
                 raise ValueError("filename is required")
@@ -290,7 +300,7 @@ class Writer:
             default_mime = ext_mimes[ext]
             mime_raw = payload.get("mime_type")
             mime_type = str(mime_raw or default_mime)
-            if mime_raw is not None and mime_type not in set(ext_mimes.values()):
+            if mime_raw is not None and mime_type not in allowed_mimes:
                 raise ValueError("mime_type does not match content_type rules")
 
             blob_ref = self._bucket.upload(object_key, body)
