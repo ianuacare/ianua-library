@@ -27,7 +27,7 @@ Then set `RequestContext(..., metadata={"model_key": "vision"})` when routing to
 ## Custom speech-to-text
 
 Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(provider, model_name, normalizer)`.
-`DiarizationModel` composes `Transcription`, `PauseParser`, `SpeakerEmbedder` (pyannote/embedding), and `SpeakerClusterer` (agglomerative + optional Silhouette `k`).
+`DiarizationModel` composes `Transcription`, `PauseParser`, spectral splitting, `SpeakerEmbedder` (librosa MFCC), and `SpeakerClusterer` (agglomerative + optional Silhouette `k`).
 
 `LLMModel` also uses the same provider + normalizer pattern (`infer` + normalize).
 

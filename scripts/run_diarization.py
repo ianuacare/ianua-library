@@ -4,7 +4,6 @@
 Requirements:
   pip install -e ".[audio]"
   export OPENAI_API_KEY=sk-...     # Whisper via OpenAI
-  export HF_TOKEN=hf_...           # pyannote/embedding (accept terms on Hugging Face first)
 
 Usage:
   python scripts/run_diarization.py /path/to/session.wav
@@ -20,46 +19,6 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
-
-
-def _hf_token() -> str | None:
-    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
-    if isinstance(token, str) and token.strip():
-        return token.strip()
-    return None
-
-
-def _verify_hf_embedding_access(*, model_id: str = "pyannote/embedding") -> None:
-    """Fail fast when the HF account has not accepted pyannote/embedding terms."""
-    token = _hf_token()
-    if not token:
-        print(
-            "Error: set HF_TOKEN (or HUGGINGFACE_TOKEN) for pyannote/embedding.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    try:
-        from huggingface_hub import HfApi
-    except ImportError:
-        return
-
-    try:
-        HfApi(token=token).model_info(model_id)
-    except Exception as exc:
-        message = str(exc).lower()
-        if "403" in message or "gated" in message or "authorized" in message:
-            print(
-                "Error: Hugging Face denied access to pyannote/embedding.\n"
-                "1. Open https://huggingface.co/pyannote/embedding while logged in\n"
-                "2. Accept the user conditions on that page\n"
-                "3. Create a token on https://huggingface.co/settings/tokens (read access)\n"
-                "4. export HF_TOKEN=hf_... from the SAME account\n"
-                "5. Re-run this script",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        print(f"Warning: could not verify HF model access: {exc}", file=sys.stderr)
 
 
 def _json_dump(label: str, payload: Any) -> None:
@@ -199,8 +158,7 @@ def main() -> None:
         validated_input["num_speakers"] = args.num_speakers
 
     print(f"Audio: {audio_path}")
-    _verify_hf_embedding_access()
-    print("Running transcription (Whisper) + diarization (pyannote + clustering)...")
+    print("Running transcription (Whisper) + diarization (spectral split + MFCC clustering)...")
 
     model = _build_diarization_model(whisper_model=args.whisper_model)
 
