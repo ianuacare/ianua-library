@@ -6,6 +6,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from typing import Any
+
+from ianuacare.ai.models.inference.clusterer import SpeakerClusterer
 from ianuacare.ai.models.inference.diarization import DiarizationModel
 from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.models.normalizer import ModelOutNormalizer
@@ -34,6 +37,12 @@ def test_speech_transcription_rejects_missing_file() -> None:
         provider.infer("whisper-1", {"audio_path": "/nonexistent/ianuacare_missing_audio.wav"})
 
 
+class _StubSpeakerEmbedder:
+    def run(self, payload: Any) -> list[list[float]]:
+        segments = payload.get("segments", [])
+        return [[1.0, 0.0] for _ in segments]
+
+
 def test_diarization_accepts_invalid_num_speakers() -> None:
     stub = CallableProvider(
         infer_fn=lambda _m, _p: {
@@ -45,6 +54,8 @@ def test_diarization_accepts_invalid_num_speakers() -> None:
     model = DiarizationModel(
         transcription=transcription,
         pause_parser=PauseParser(silence_gap_seconds=0.01),
+        embedder=_StubSpeakerEmbedder(),
+        clusterer=SpeakerClusterer(),
     )
     out = model.run(
         {
@@ -57,7 +68,7 @@ def test_diarization_accepts_invalid_num_speakers() -> None:
 
 
 def test_pause_parser_merges_short_gaps() -> None:
-    parser = PauseParser(silence_gap_seconds=1.5)
+    parser = PauseParser(silence_gap_seconds=1.5, merge_gaps=True)
     out = parser.parse(
         [
             {"start": 0.0, "end": 1.0, "text": "a"},
