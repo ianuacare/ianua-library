@@ -247,9 +247,9 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `LLMModel.astream(payload) -> AsyncIterator[str]` — chunks from `AIProvider.ainfer_stream`.
 - `LLMModel.finalize_stream_text(text) -> dict` — normalizes assembled stream text like `run`.
 - `TextEmbedder.run(payload) -> dict` — returns text/sentence/word vectors in a normalized artefact shape.
-- `SpeakerEmbedder.run(payload) -> list[float]` — deterministic vectorization helper.
-- `SpeakerClusterer.run(payload) -> list[int]` — deterministic clustering helper.
-- `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer.
+- `SpeakerEmbedder.run(payload) -> list[float] | list[list[float]]` — pyannote/embedding crop per segment (batch via `segments` key); requires `audio_path`; Hugging Face token via `SpeakerEmbedder(hf_token=...)` or `HF_TOKEN` / `HUGGINGFACE_TOKEN` env vars.
+- `SpeakerClusterer.run(payload) -> list[int]` — agglomerative clustering (cosine); Silhouette-based `k` when `num_speakers` is omitted or invalid.
+- `DiarizationModel.run(payload) -> dict` — composes transcription, parsers, embedder, clusterer. Payload fields: `merge_transcript_gaps` (default `false`), `max_segment_seconds` (default `30`), `use_spectral_split` (default `true`), `spectral_threshold` (default `0.35`), `spectral_hop_seconds` (default `2.0`), `spectral_min_gap_seconds` (default `1.5`).
 - `LabelClusterer.run(payload) -> dict` — generic label mapping clusterer. Expects `vectors` and `label_clusters` in payload (optional aligned `texts` and `point_ids` per vector row), clusters vectors in original space, maps each cluster to the nearest label prototype (built via `TextEmbedder`), and returns `labels`, `assigned_labels`, `cluster_to_label`, PCA visualization fields (`projected_vectors`, `explained_variance_ratio`), plus echoed `texts` and `point_ids` (defaults: empty strings and `null` ids when omitted).
 - `RankedLabelClusterer.run(payload) -> dict` — generic label mapping clusterer with ranked output. Expects `vectors`, `label_clusters`, optional aligned `texts`, optional `point_ids`, and optional `num_clusters`; returns `labels`, `assigned_labels`, `cluster_to_label`, `ranked_clusters` sorted by numerosity (`count`, `percentage`, `examples` up to 5, optional `keywords`), plus echoed `texts` and `point_ids` (defaults: empty strings and `null` ids when omitted).
 
@@ -272,8 +272,11 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 ### Parsers (`ianuacare.ai.parsers`)
 
 - `BaseParser.parse(data) -> Any`
-- `PauseParser.parse(segments) -> list[dict]`
+- `PauseParser.parse(segments, merge_gaps=None) -> list[dict]` — optional gap merge (default enabled on the parser instance; diarization defaults to no merge).
 - `SpectralParser.parse(segment) -> dict[str, float]`
+- `spectral_segmenter.detect_spectral_boundaries(audio_path, *, hop_seconds, threshold, min_gap_seconds) -> list[float]` — MFCC-based change-point detector; returns sorted boundary timestamps.
+- `segment_duration.split_by_spectral_boundaries(segments, boundaries) -> list[dict]` — split ASR segments at pre-computed spectral boundaries.
+- `segment_duration.split_by_max_duration(segments, *, max_duration_seconds) -> list[dict]` — uniform time-based splitting fallback.
 
 ## Breaking migration notes
 
