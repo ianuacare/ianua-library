@@ -11,12 +11,18 @@ _DEFAULT_GAP_SECONDS = 1.5
 
 
 class PauseParser(BaseParser):
-    """Merge consecutive segments if the gap between them is at most ``silence_gap_seconds``."""
+    """Normalize transcript segments; optionally merge when the inter-segment gap is small."""
 
-    def __init__(self, silence_gap_seconds: float = _DEFAULT_GAP_SECONDS) -> None:
+    def __init__(
+        self,
+        silence_gap_seconds: float = _DEFAULT_GAP_SECONDS,
+        *,
+        merge_gaps: bool = True,
+    ) -> None:
         self._gap = silence_gap_seconds
+        self._merge_gaps = merge_gaps
 
-    def parse(self, data: Any) -> list[dict[str, Any]]:
+    def parse(self, data: Any, *, merge_gaps: bool | None = None) -> list[dict[str, Any]]:
         if not isinstance(data, list):
             return []
         normalized: list[dict[str, Any]] = []
@@ -35,6 +41,10 @@ class PauseParser(BaseParser):
             return []
 
         normalized.sort(key=lambda s: to_float(s.get("start"), 0.0))
+
+        should_merge = self._merge_gaps if merge_gaps is None else merge_gaps
+        if not should_merge:
+            return normalized
 
         merged: list[dict[str, Any]] = []
         current = dict(normalized[0])

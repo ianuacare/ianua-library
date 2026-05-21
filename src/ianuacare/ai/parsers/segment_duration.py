@@ -1,0 +1,210 @@
+"""Split transcript segments for finer speaker embedding and diarization output.
+
+Two splitting strategies are provided:
+
+* :func:`split_by_max_duration` — time-uniform fallback (Phase 1 default).
+* :func:`split_by_spectral_boundaries` — data-driven split at spectral
+  change-points detected by :mod:`spectral_segmenter`.
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Any
+
+from ianuacare.ai._numeric import to_float
+
+DEFAULT_MAX_SEGMENT_SECONDS = 30.0
+_MIN_CHUNK_SECONDS = 0.05
+_LABEL_GAP_TOLERANCE_SECONDS = 0.05
+
+
+def split_by_max_duration(
+    segments: list[dict[str, Any]],
+    *,
+    max_duration_seconds: float = DEFAULT_MAX_SEGMENT_SECONDS,
+) -> list[dict[str, Any]]:
+    """Split segments longer than ``max_duration_seconds`` into time-aligned sub-chunks."""
+    if max_duration_seconds <= 0:
+        return [dict(segment) for segment in segments]
+
+    chunks: list[dict[str, Any]] = []
+    for segment in segments:
+        start = to_float(segment.get("start"), 0.0)
+        end = to_float(segment.get("end"), start)
+        duration = max(0.0, end - start)
+        text = str(segment.get("text", "")).strip()
+
+        if duration <= max_duration_seconds or duration < _MIN_CHUNK_SECONDS:
+            chunks.append({"start": start, "end": end, "text": text})
+            continue
+
+        n_parts = max(1, math.ceil(duration / max_duration_seconds))
+        if duration / n_parts < _MIN_CHUNK_SECONDS:
+            n_parts = max(1, math.ceil(duration / _MIN_CHUNK_SECONDS))
+
+        part_duration = duration / n_parts
+        for index in range(n_parts):
+            part_start = start + index * part_duration
+            part_end = start + (index + 1) * part_duration if index < n_parts - 1 else end
+            frac_start = index / n_parts
+            frac_end = (index + 1) / n_parts
+            chunks.append(
+                {
+                    "start": part_start,
+                    "end": part_end,
+                    "text": _slice_text_by_fraction(text, frac_start, frac_end),
+                }
+            )
+    return chunks
+
+
+def merge_labeled_chunks(
+    chunks: list[dict[str, Any]],
+    labels: list[int],
+) -> list[dict[str, Any]]:
+    """Merge consecutive sub-chunks that share the same speaker label."""
+    if not chunks:
+        return []
+
+    aligned = _align_labels(labels, len(chunks))
+    merged: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+
+    for chunk, label in zip(chunks, aligned, strict=True):
+        start = to_float(chunk.get("start"), 0.0)
+        end = to_float(chunk.get("end"), start)
+        text = str(chunk.get("text", "")).strip()
+
+        if current is None:
+            current = {"start": start, "end": end, "text": text, "speaker_id": label}
+            continue
+
+        prev_end = to_float(current.get("end"), 0.0)
+        same_speaker = int(current.get("speaker_id", 0)) == label
+        contiguous = start <= prev_end + _LABEL_GAP_TOLERANCE_SECONDS
+
+        if same_speaker and contiguous:
+            current["end"] = max(prev_end, end)
+            if text:
+                prev_text = str(current.get("text", "")).strip()
+                current["text"] = " ".join(piece for piece in (prev_text, text) if piece).strip()
+            continue
+
+        merged.append(current)
+        current = {"start": start, "end": end, "text": text, "speaker_id": label}
+
+    if current is not None:
+        merged.append(current)
+    return merged
+
+
+def split_by_spectral_boundaries(
+    segments: list[dict[str, Any]],
+    boundaries: list[float],
+    *,
+    min_chunk_seconds: float = _MIN_CHUNK_SECONDS,
+) -> list[dict[str, Any]]:
+    """Split ASR segments at pre-computed spectral boundary timestamps.
+
+    For each segment, every boundary that falls strictly inside its
+    ``[start, end)`` interval creates a cut.  Text is distributed
+    proportionally by word count, exactly as in :func:`split_by_max_duration`.
+
+    Boundaries that fall outside all segments are silently ignored.
+
+    Args:
+        segments: List of dicts with ``start``, ``end``, and ``text`` keys.
+        boundaries: Sorted list of boundary timestamps in seconds (as
+            returned by :func:`spectral_segmenter.detect_spectral_boundaries`).
+        min_chunk_seconds: Sub-chunks shorter than this are merged into the
+            preceding chunk to avoid near-empty embedding windows.
+
+    Returns:
+        New list of segment dicts.  Each dict has ``start``, ``end``, and
+        ``text``.  The original list is not modified.
+    """
+    sorted_boundaries = sorted(boundaries)
+    chunks: list[dict[str, Any]] = []
+
+    for segment in segments:
+        start = to_float(segment.get("start"), 0.0)
+        end = to_float(segment.get("end"), start)
+        text = str(segment.get("text", "")).strip()
+        duration = max(0.0, end - start)
+
+        if duration < _MIN_CHUNK_SECONDS:
+            chunks.append({"start": start, "end": end, "text": text})
+            continue
+
+        # Collect cut points inside this segment
+        cuts = [t for t in sorted_boundaries if start < t < end]
+        if not cuts:
+            chunks.append({"start": start, "end": end, "text": text})
+            continue
+
+        # Build sub-intervals
+        edges = [start, *cuts, end]
+        sub_chunks: list[dict[str, Any]] = []
+        for i in range(len(edges) - 1):
+            sub_start = edges[i]
+            sub_end = edges[i + 1]
+            frac_start = (sub_start - start) / duration
+            frac_end = (sub_end - start) / duration
+            sub_chunks.append(
+                {
+                    "start": sub_start,
+                    "end": sub_end,
+                    "text": _slice_text_by_fraction(text, frac_start, frac_end),
+                }
+            )
+
+        # Absorb sub-chunks that are too short into the next chunk.
+        # We do a forward pass: if the *previous* kept chunk is below the
+        # minimum, merge it into the current one.
+        kept: list[dict[str, Any]] = []
+        for sub in sub_chunks:
+            if kept:
+                prev = kept[-1]
+                prev_dur = to_float(prev.get("end"), 0.0) - to_float(prev.get("start"), 0.0)
+                if prev_dur < min_chunk_seconds:
+                    # Absorb the too-short previous chunk into the current one
+                    merged_text = " ".join(
+                        p for p in (prev.get("text", ""), sub.get("text", "")) if p
+                    ).strip()
+                    kept[-1] = {
+                        "start": prev["start"],
+                        "end": sub["end"],
+                        "text": merged_text,
+                    }
+                    continue
+            kept.append(dict(sub))
+
+        chunks.extend(kept)
+
+    return chunks
+
+
+def _slice_text_by_fraction(text: str, frac_start: float, frac_end: float) -> str:
+    words = text.split()
+    if not words:
+        return ""
+    n = len(words)
+    start_index = min(n, max(0, int(frac_start * n)))
+    end_index = min(n, max(start_index, int(frac_end * n)))
+    if start_index >= end_index and end_index < n:
+        end_index = start_index + 1
+    return " ".join(words[start_index:end_index])
+
+
+def _align_labels(labels: list[int], n: int) -> list[int]:
+    if n <= 0:
+        return []
+    if len(labels) == n:
+        return list(labels)
+    if not labels:
+        return [0] * n
+    if len(labels) < n:
+        pad = labels[-1]
+        return [*labels, *([pad] * (n - len(labels)))]
+    return list(labels[:n])

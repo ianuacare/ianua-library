@@ -47,7 +47,20 @@ class InputDataParser:
             if not isinstance(segments, list):
                 raise ValidationError("validated_data.segments must be a list for diarization")
             payload = {"segments": segments}
-            for field in ("audio_path", "num_speakers", "language", "response_format"):
+            for field in (
+                "audio_path",
+                "num_speakers",
+                "min_speakers",
+                "max_speakers",
+                "language",
+                "response_format",
+                "merge_transcript_gaps",
+                "max_segment_seconds",
+                "use_spectral_split",
+                "spectral_threshold",
+                "spectral_hop_seconds",
+                "spectral_min_gap_seconds",
+            ):
                 if field in validated:
                     payload[field] = validated[field]
             return payload
