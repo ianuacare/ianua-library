@@ -45,9 +45,15 @@ class TogetherAIProvider(AIProvider):
 
     def _infer_chat(self, model_name: str, payload: Any) -> dict[str, Any]:
         selected_model = model_name or self._default_model
+        # Accept a pre-built OpenAI-style messages list (produced by the chatbot
+        # layer) or fall back to wrapping arbitrary payloads in a single user turn.
+        if isinstance(payload, list):
+            messages: list[Any] = payload
+        else:
+            messages = [{"role": "user", "content": str(payload)}]
         response = self._client.chat.completions.create(
             model=selected_model,
-            messages=[{"role": "user", "content": str(payload)}],
+            messages=messages,
         )
         choice = response.choices[0]
         message = choice.message
