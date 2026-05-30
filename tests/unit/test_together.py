@@ -48,6 +48,47 @@ def test_together_infer_embeddings() -> None:
         client.chat.completions.create.assert_not_called()
 
 
+def test_together_infer_accepts_messages_list() -> None:
+    """Provider passes a pre-built messages list straight to the API."""
+    mock_together_cls = MagicMock()
+    client = MagicMock()
+    mock_together_cls.return_value = client
+    response = MagicMock()
+    response.choices = [MagicMock(message=MagicMock(content="risposta"))]
+    response.model_dump.return_value = {}
+    client.chat.completions.create.return_value = response
+
+    messages = [
+        {"role": "system", "content": "Sei un assistente."},
+        {"role": "user", "content": "[RETRIEVED CONTEXT]\nDoc A\n\nDomanda?"},
+    ]
+
+    with patch.object(together_module, "Together", mock_together_cls):
+        provider = TogetherAIProvider(api_key="k", default_model="m")
+        out = provider.infer("m", messages)
+        assert out["text"] == "risposta"
+        call_kwargs = client.chat.completions.create.call_args
+        assert call_kwargs.kwargs["messages"] is messages
+
+
+def test_together_infer_wraps_string_payload() -> None:
+    """Non-list payload is wrapped in a single user message (backward-compat)."""
+    mock_together_cls = MagicMock()
+    client = MagicMock()
+    mock_together_cls.return_value = client
+    response = MagicMock()
+    response.choices = [MagicMock(message=MagicMock(content="ok"))]
+    response.model_dump.return_value = {}
+    client.chat.completions.create.return_value = response
+
+    with patch.object(together_module, "Together", mock_together_cls):
+        provider = TogetherAIProvider(api_key="k", default_model="m")
+        provider.infer("m", "hello plain string")
+        call_kwargs = client.chat.completions.create.call_args
+        sent = call_kwargs.kwargs["messages"]
+        assert sent == [{"role": "user", "content": "hello plain string"}]
+
+
 def test_together_infer_stream_rejects_embeddings() -> None:
     mock_together_cls = MagicMock()
     client = MagicMock()
