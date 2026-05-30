@@ -261,13 +261,37 @@ class Chatbot:
         msg_text = str(normalized.get("text") or assembled).strip()
         self._finalize_success(query, msg_text, new_hits, context_request)
 
-    def _build_llm_payload(self, query: str, selected: list[RetrievedPoint]) -> dict[str, Any]:
-        return {
-            "summary": self.state.summary,
-            "history": [{"role": m.role, "content": m.content} for m in self.state.context],
-            "retrieved": [p.source_text for p in selected],
-            "query": query,
-        }
+    def _build_llm_payload(self, query: str, selected: list[RetrievedPoint]) -> list[dict[str, str]]:
+        """Build an OpenAI-style messages list ready for the LLM provider.
+
+        Structure:
+        - All messages from ``state.context`` (includes system prompt if set,
+          plus prior user/assistant turns).
+        - A final ``user`` message that injects the RAG snippets and the query.
+          The injected sections use generic labels so this layer stays
+          domain-agnostic; the system prompt (set by the caller) carries any
+          domain-specific framing.
+        """
+        messages: list[dict[str, str]] = [
+            {"role": m.role, "content": m.content} for m in self.state.context
+        ]
+
+        user_parts: list[str] = []
+
+        if self.state.summary:
+            user_parts.append(f"[CONTEXT SUMMARY]\n{self.state.summary}")
+
+        if selected:
+            snippets = "\n\n---\n\n".join(
+                p.source_text for p in selected if p.source_text.strip()
+            )
+            if snippets:
+                user_parts.append(f"[RETRIEVED CONTEXT]\n{snippets}")
+
+        user_parts.append(query)
+
+        messages.append({"role": "user", "content": "\n\n".join(user_parts)})
+        return messages
 
     def _merge_new_hits_into_pool(self, new_hits_raw: list[dict[str, Any]], turn: int) -> None:
         new_points = [RetrievedPoint.from_vector_hit(h, turn) for h in new_hits_raw]
