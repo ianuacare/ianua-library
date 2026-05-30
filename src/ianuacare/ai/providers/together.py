@@ -50,9 +50,17 @@ class TogetherAIProvider(AIProvider):
             messages=[{"role": "user", "content": str(payload)}],
         )
         choice = response.choices[0]
+        message = choice.message
+        # Downstream normalizers read the ``text`` key; expose it here so chat
+        # completions are not silently dropped. Reasoning models may leave
+        # ``content`` empty and put the answer in ``reasoning`` — fall back to it.
+        text = (message.content or "").strip()
+        if not text:
+            text = (getattr(message, "reasoning", None) or "").strip()
         return {
             "model": selected_model,
-            "content": choice.message.content,
+            "text": text,
+            "content": message.content,
             "raw": response.model_dump(),
         }
 
