@@ -33,6 +33,7 @@ L'app usera' quella chiave per scegliere quale modello invocare.
 
 ```python
 from ianuacare import (
+    AudioEmotionModel,
     CallableProvider,
     DiarizationModel,
     LabelClusterer,
@@ -40,6 +41,8 @@ from ianuacare import (
     ModelOutNormalizer,
     NLPModel,
     RankedLabelClusterer,
+    RestHostedModelProvider,
+    RestRequest,
     SpeechTranscriptionProvider,
     TextEmbedder,
     Transcription,
@@ -63,6 +66,10 @@ text_embedder = TextEmbedder(CallableProvider(), "text-embedding-v1")
 # Generic label clustering (embedding analytics)
 label_clusterer = LabelClusterer(text_embedder=text_embedder)
 ranked_label_clusterer = RankedLabelClusterer(text_embedder=text_embedder)
+
+# Audio emotion (REST-hosted endpoint — vedi docs/audio-emotion.md)
+# emotion_provider = RestHostedModelProvider(endpoint_url=..., build_request=..., api_key=...)
+# audio_emotion = AudioEmotionModel(emotion_provider, "emotion-model-id", ModelOutNormalizer())
 ```
 
 ### Pipeline e autenticazione (il collante)
@@ -208,6 +215,7 @@ sequenceDiagram
 |---|---|---|
 | `"llm"` | `{"text": "Testo da elaborare..."}` | `{"text": "...", "key_points": [...]}` |
 | `"diarization"` | `{"audio_path": "/path/file.wav", "num_speakers": 2, "language": "it"}` | `{"raw_transcription": "...", "segments": [...], "speakers": [...]}` |
+| `"audio_emotion"` | `{"audio_path": "/path/file.wav"}` | `{"arousal": 0.54, "dominance": 0.61, "valence": 0.40}` |
 | `"label_clusterer"` | `{"vectors": [[...], [...], ...], "label_clusters": {"my_label": ["anchor1", "anchor2"]}, "texts": ["...", ...]?, "point_ids": [...]?}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "projected_vectors": [...], "explained_variance_ratio": [...], "texts": [...], "point_ids": [...]}` |
 | `"ranked_label_clusterer"` | `{"vectors": [[...], ...], "label_clusters": {"my_label": ["anchor1"]}, "texts": ["...", ...]?, "point_ids": [...]?, "num_clusters": 8}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "ranked_clusters": [...], "texts": [...], "point_ids": [...]}` |
 | `"nlp"` (o altro) | Qualsiasi dizionario | Dipende dal provider configurato |
@@ -254,6 +262,24 @@ print(packet.inference_result["raw_transcription"])
 for seg in packet.inference_result["segments"]:
     print(f"Speaker {seg['speaker_id']}: {seg['text']}")
 ```
+
+### Esempio: emotion da audio (REST hosted)
+
+```python
+context = RequestContext(
+    user=user,
+    product="my-product",
+    metadata={"model_key": "audio_emotion"},
+)
+packet = pipeline.run_model(
+    {"audio_path": "/path/to/session.wav"},
+    context,
+)
+print(packet.inference_result)
+# {"arousal": 0.54, "dominance": 0.61, "valence": 0.40}
+```
+
+Vedi [Audio emotion (REST-hosted)](audio-emotion.md) per il wiring di `RestHostedModelProvider`.
 
 ### Esempio: NLP generico
 

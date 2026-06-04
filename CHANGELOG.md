@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Audio emotion (REST-hosted)**: `RestHostedModelProvider` and `RestRequest` (`ianuacare.ai.providers`) with injectable `build_request`, `parse_response`, and `post_fn` (default stdlib HTTP). `AudioEmotionModel` (`ianuacare.ai.models.inference`) extends `NLPModel` and normalizes arousal/dominance/valence via `ModelOutNormalizer.normalize_audio_emotion`. Documentation: [Audio emotion](docs/audio-emotion.md).
+
 ## 0.3.0 - 2026-05-04
 
 - **Pipeline / storage**: `PipelineDatabase.run_bucket` / `Pipeline.run_bucket` with `content_type` (`audio` | `text`) generalizes the former audio-only bucket flow; `Pipeline.run_audio` remains a convenience alias for `run_bucket(..., content_type="audio")` (`PipelineDatabase` exposes only `run_bucket`). Bucket audit events are `pipeline_bucket_started` / `pipeline_bucket_completed`. `Writer.write_bucket_*`, `Reader.read_bucket`, `DataValidator.validate_bucket_payload`, and stub presigned URL helpers on `InMemoryBucketClient` support the same contract in tests and production adapters.

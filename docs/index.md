@@ -21,6 +21,7 @@ information (PHI) into logs.
 | [Getting started](getting-started.md) | Install, minimal example |
 | [Application integration flow](application-integration-flow.md) | End-to-end app wiring for model/CRUD/audio/vector flows |
 | [Audio transcription and diarization](audio-diarization.md) | `ianuacare.ai.models.inference` + providers/normalizer, pluggable ASR and session artifacts |
+| [Audio emotion (REST-hosted)](audio-emotion.md) | `AudioEmotionModel` + `RestHostedModelProvider` for arousal/dominance/valence via HTTP |
 | [API reference](api-reference.md) | Public classes and methods |
 | [Preconfigurations](preconfigurations.md) | Ready-to-use adapters and stack factory |
 | [Extending](extending.md) | Custom models, storage, validation |

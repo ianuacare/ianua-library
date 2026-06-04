@@ -1,0 +1,6 @@
+feat(orchestration): split input and output parsers
+
+Replace DataParser with InputDataParser and OutputDataParser.
+Move processed_data normalization into OutputDataParser.
+Orchestrator reads optional output_schema from context.metadata for LLM validation.
+Update presets, exports, tests, and docs.

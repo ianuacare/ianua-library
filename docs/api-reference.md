@@ -241,6 +241,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `BaseAIModel.run(payload: Any) -> Any` — abstract entry point.
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
+- `AudioEmotionModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_audio_emotion` (arousal, dominance, valence).
 - `LLMModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
 - `LLMModel.stream(payload) -> Iterator[str]` — text fragments from `AIProvider.infer_stream`.
 - `LLMModel.arun(payload) -> dict` — async via `AIProvider.ainfer` + `normalize_summary`.
@@ -256,6 +257,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 ### Normalizer (`ianuacare.ai.models.normalizer`)
 
 - `ModelOutNormalizer.normalize_transcript(raw) -> dict`
+- `ModelOutNormalizer.normalize_audio_emotion(raw) -> dict[str, float]` — arousal, dominance, valence.
 - `ModelOutNormalizer.normalize_summary(raw) -> dict`
 - `ModelOutNormalizer.normalize_task(raw) -> dict`
 
@@ -268,6 +270,8 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `CallableProvider` — callable-backed provider for tests.
 - `TogetherAIProvider` — Together chat completions adapter.
 - `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio).
+- `RestHostedModelProvider` — POST to a hosted REST endpoint via injectable `build_request` / `parse_response` / `post_fn`.
+- `RestRequest` — dataclass (`url`, `headers`, `body`, `method`) returned by `build_request`.
 
 ### Parsers (`ianuacare.ai.parsers`)
 

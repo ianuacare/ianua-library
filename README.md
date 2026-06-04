@@ -16,6 +16,7 @@ See the [`docs/`](docs/) folder:
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
 - [Audio transcription and diarization](docs/audio-diarization.md) (new `ianuacare.ai.models.inference` flow, optional `[audio]` extra)
+- [Audio emotion (REST-hosted)](docs/audio-emotion.md) (`AudioEmotionModel`, `RestHostedModelProvider`)
 - [Application integration flow](docs/application-integration-flow.md) (includes CRUD, audio, and vector DB flows)
 - [API reference](docs/api-reference.md)
 - [Preconfigurations](docs/preconfigurations.md)
@@ -45,6 +46,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI)
 - Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
+- Audio emotion (`AudioEmotionModel`, `RestHostedModelProvider`) — REST-hosted dimensional emotion (no extra dependency)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)
 - `EnvConfigService` and `StructuredLogger`

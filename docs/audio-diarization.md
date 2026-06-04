@@ -155,3 +155,7 @@ Application code should map these exceptions to stable API error codes.
 - Do not log raw audio payloads or full transcripts in plaintext logs.
 - Avoid placing PHI in trace/debug metadata fields.
 - Apply retention controls in the application layer for audio artifacts.
+
+## Related
+
+- [Audio emotion (REST-hosted models)](audio-emotion.md) — dimensional emotion (arousal, dominance, valence) via `RestHostedModelProvider` and `AudioEmotionModel`.

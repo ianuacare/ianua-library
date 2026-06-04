@@ -1,6 +1,7 @@
 """AI models, providers, and parsers."""
 
 from ianuacare.ai.models import (
+    AudioEmotionModel,
     BaseAIModel,
     DiarizationModel,
     LLMModel,
@@ -15,12 +16,15 @@ from ianuacare.ai.parsers import BaseParser, PauseParser, SpectralParser
 from ianuacare.ai.providers import (
     AIProvider,
     CallableProvider,
+    RestHostedModelProvider,
+    RestRequest,
     SpeechTranscriptionProvider,
     TogetherAIProvider,
 )
 
 __all__ = [
     "AIProvider",
+    "AudioEmotionModel",
     "BaseAIModel",
     "BaseParser",
     "CallableProvider",
@@ -29,6 +33,8 @@ __all__ = [
     "ModelOutNormalizer",
     "NLPModel",
     "PauseParser",
+    "RestHostedModelProvider",
+    "RestRequest",
     "SpeakerClusterer",
     "SpeakerEmbedder",
     "SpeechTranscriptionProvider",
