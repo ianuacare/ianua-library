@@ -221,8 +221,39 @@ class OutputDataParser:
         """Branch for ``llm``: validate required fields and type coherence vs schema."""
         if schema is None:
             return result
-        self._check_required_fields(result, schema)
-        self._check_schema_coherence(result, schema)
+        structured = self._extract_structured_llm_output(result)
+        self._check_required_fields(structured, schema)
+        self._check_schema_coherence(structured, schema)
+        return structured
+
+    @staticmethod
+    def _extract_structured_llm_output(result: Any) -> Any:
+        """Unwrap provider envelopes so schema validation targets model JSON, not metadata.
+
+        Chat providers (e.g. Together) return ``{model, text, content, raw}`` where
+        ``text`` holds the JSON payload as a string. ``LLMModel`` may further wrap
+        that in ``{text, key_points}`` via ``normalize_summary``. When an
+        ``output_schema`` is set, callers expect the parsed object (e.g.
+        ``persone``, ``relazioni``), not the envelope.
+        """
+        if not isinstance(result, dict):
+            return result
+
+        text = result.get("text")
+        if not isinstance(text, str):
+            return result
+
+        stripped = text.strip()
+        if not stripped or stripped[0] not in "{[":
+            return result
+
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return result
+
+        if isinstance(parsed, dict):
+            return parsed
         return result
 
     def _parse_diarization(self, result: Any) -> Any:
