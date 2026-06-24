@@ -36,6 +36,7 @@ nav:
   - Getting started: getting-started.md
   - Application integration flow: application-integration-flow.md
   - Audio transcription and diarization: audio-diarization.md
+  - Audio emotion (REST-hosted): audio-emotion.md
   - Architecture: architecture.md
   - RAG chatbot: chatbot.md
   - API reference: api-reference.md

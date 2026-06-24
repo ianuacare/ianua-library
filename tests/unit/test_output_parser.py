@@ -1,5 +1,7 @@
 """OutputDataParser."""
 
+import json
+
 import pytest
 
 from ianuacare.core.exceptions.errors import ValidationError
@@ -44,6 +46,35 @@ def test_llm_wrong_type_raises() -> None:
     }
     with pytest.raises(ValidationError):
         OutputDataParser().parse(p, model_key="llm", schema=schema)
+
+
+def test_llm_unwraps_json_text_before_schema_validation() -> None:
+    genogram = {"persone": [{"id": "p1"}], "relazioni": []}
+    provider_wrapper = {
+        "model": "Qwen/test",
+        "text": json.dumps(genogram),
+        "content": json.dumps(genogram),
+        "raw": {},
+    }
+    schema = {
+        "required": ["persone", "relazioni"],
+        "properties": {
+            "persone": {"type": "array"},
+            "relazioni": {"type": "array"},
+        },
+    }
+    p = DataPacket(inference_result=provider_wrapper)
+    OutputDataParser().parse(p, model_key="llm", schema=schema)
+    assert p.processed_data == genogram
+
+
+def test_llm_unwraps_normalize_summary_envelope() -> None:
+    genogram = {"persone": [{"id": "p1"}], "relazioni": []}
+    normalized = {"text": json.dumps(genogram), "key_points": []}
+    schema = {"required": ["persone", "relazioni"]}
+    p = DataPacket(inference_result=normalized)
+    OutputDataParser().parse(p, model_key="llm", schema=schema)
+    assert p.processed_data == genogram
 
 
 def test_llm_schema_coherent_passes() -> None:

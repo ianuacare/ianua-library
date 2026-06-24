@@ -33,6 +33,27 @@ Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(prov
 
 For embedding analytics, `LabelClusterer` and `RankedLabelClusterer` consume precomputed vectors and use `TextEmbedder` internally to build anchor prototypes for label mapping. Labels are not hardcoded in the library: pass your `label_clusters` mapping in the runtime payload. Register models in `Orchestrator` with dedicated keys (for example `"label_clusterer"` and `"ranked_label_clusterer"`).
 
+## REST-hosted audio emotion
+
+Use `RestHostedModelProvider` when the model runs on your own HTTP endpoint (for example Hugging Face Inference Endpoints). Inject `build_request` and `parse_response` so the library stays agnostic of wire format; plug the provider into `AudioEmotionModel(provider, model_name, ModelOutNormalizer())`.
+
+```python
+from ianuacare import AudioEmotionModel, ModelOutNormalizer, RestHostedModelProvider, RestRequest
+
+def build_request(model_name: str, payload: dict) -> RestRequest:
+    with open(payload["audio_path"], "rb") as f:
+        return RestRequest(headers={"Content-Type": "audio/wav"}, body=f.read())
+
+provider = RestHostedModelProvider(
+    endpoint_url="https://your-endpoint.example",
+    api_key="...",
+    build_request=build_request,
+)
+emotion = AudioEmotionModel(provider, "emotion-model-id", ModelOutNormalizer())
+```
+
+See [Audio emotion (REST-hosted models)](audio-emotion.md) for payload/output details and a full wiring example.
+
 ## Custom parsing
 
 The orchestration stage wires two parsers:

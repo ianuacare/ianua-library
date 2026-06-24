@@ -26,12 +26,19 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 ### :material-robot-outline: AI provider
 
 - :material-brain: `TogetherAIProvider` (`ianuacare.ai.providers`) for Together chat inference.
+- :material-api: `RestHostedModelProvider` (`ianuacare.ai.providers`) for custom REST-hosted models (injectable request/response hooks; stdlib HTTP).
 
 ### :material-microphone: Speech (transcription / diarization / transcript summary)
 
 - Modules **`ianuacare.ai.models.inference`**, **`ianuacare.ai.providers`**, **`ianuacare.ai.models.normalizer`** (optional **`audio`** extra: `pip install "ianuacare[audio]"`).
 - Main classes: `Transcription`, `DiarizationModel`, `LLMModel`, `TextEmbedder`, `LabelClusterer`, `RankedLabelClusterer`, `SpeechTranscriptionProvider`, `ModelOutNormalizer`.
 - See [Audio transcription and diarization](audio-diarization.md) for usage; apps wire provider + normalizer, while models stay vendor-agnostic.
+
+### :material-emoticon-happy-outline: Audio emotion (REST-hosted)
+
+- `AudioEmotionModel`, `RestHostedModelProvider`, `RestRequest`, `ModelOutNormalizer.normalize_audio_emotion`.
+- No dedicated pip extra; endpoint contract is defined in your app via `build_request` / `parse_response`.
+- See [Audio emotion (REST-hosted models)](audio-emotion.md).
 
 ### :material-lightning-bolt-circle: Cache and encryption
 

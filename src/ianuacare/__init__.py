@@ -2,6 +2,7 @@
 
 from ianuacare.ai import (
     AIProvider,
+    AudioEmotionModel,
     BaseAIModel,
     CallableProvider,
     DiarizationModel,
@@ -9,6 +10,8 @@ from ianuacare.ai import (
     ModelOutNormalizer,
     NLPModel,
     PauseParser,
+    RestHostedModelProvider,
+    RestRequest,
     SpeakerClusterer,
     SpeakerEmbedder,
     SpectralParser,
@@ -83,6 +86,7 @@ __version__ = "0.3.0"
 
 __all__ = [
     "AIProvider",
+    "AudioEmotionModel",
     "CallableProvider",
     "DiarizationModel",
     "AuditService",
@@ -124,6 +128,8 @@ __all__ = [
     "PostgresDatabaseClient",
     "QdrantDatabaseClient",
     "Reader",
+    "RestHostedModelProvider",
+    "RestRequest",
     "RequestContext",
     "SpeakerClusterer",
     "SpeakerEmbedder",

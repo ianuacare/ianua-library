@@ -1,6 +1,7 @@
 """Public AI model APIs."""
 
 from ianuacare.ai.models.inference import (
+    AudioEmotionModel,
     BaseAIModel,
     DiarizationModel,
     LLMModel,
@@ -13,6 +14,7 @@ from ianuacare.ai.models.inference import (
 from ianuacare.ai.models.normalizer import ModelOutNormalizer
 
 __all__ = [
+    "AudioEmotionModel",
     "BaseAIModel",
     "DiarizationModel",
     "LLMModel",
