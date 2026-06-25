@@ -53,6 +53,8 @@ def _artefact(artefact_id: str = "tr-1") -> dict[str, object]:
         "sentence_vect": [[1.0, 0.0], [0.0, 1.0]],
         "words": ["ciao", "mondo"],
         "words_vect": [[0.9, 0.1], [0.1, 0.9]],
+        "chunks": ["ciao mondo", "altro chunk"],
+        "chunks_vect": [[0.8, 0.2], [0.2, 0.8]],
     }
 
 
@@ -102,6 +104,19 @@ class TestWriteVectorUpsert:
         )
         hits = vector_db.search("docs", vector=[0.9, 0.1], top_k=5)
         assert {hit["id"] for hit in hits} == {"tr-1:words:0", "tr-1:words:1"}
+
+    def test_chunks_level_produces_one_point_per_chunk(
+        self, writer: Writer, vector_db: InMemoryVectorDatabaseClient, ctx: RequestContext
+    ) -> None:
+        writer.write_vector_upsert(
+            "docs",
+            [_artefact()],
+            vector_field="chunks",
+            context=ctx,
+        )
+        hits = vector_db.search("docs", vector=[0.8, 0.2], top_k=5)
+        assert {hit["id"] for hit in hits} == {"tr-1:chunks:0", "tr-1:chunks:1"}
+        assert hits[0]["payload"]["source_text"] == "ciao mondo"
 
     def test_multiple_artefacts(
         self, writer: Writer, vector_db: InMemoryVectorDatabaseClient, ctx: RequestContext

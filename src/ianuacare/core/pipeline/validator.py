@@ -11,6 +11,8 @@ from ianuacare.core.models.packet import DataPacket
 
 BucketContentType = Literal["audio", "text"]
 
+_VECTOR_LEVELS: frozenset[str] = frozenset({"text", "chunks", "sentence", "words"})
+
 
 class DataValidator:
     """Applies validation rules and sets ``validated_data`` on the packet."""
@@ -90,8 +92,10 @@ class DataValidator:
         vector_field = payload.get("vector_field")
         if not isinstance(artefatti, list) or not artefatti:
             raise ValidationError("artefatti must be a non-empty list")
-        if vector_field not in {"text", "sentence", "words"}:
-            raise ValidationError("vector_field must be 'text', 'sentence', or 'words'")
+        if vector_field not in _VECTOR_LEVELS:
+            raise ValidationError(
+                f"vector_field must be one of {sorted(_VECTOR_LEVELS)}"
+            )
         return payload
 
     @staticmethod
@@ -99,9 +103,9 @@ class DataValidator:
         filters = payload.get("filters")
         if not isinstance(filters, dict) or "level" not in filters:
             raise ValidationError("filters.level is required")
-        if filters["level"] not in {"text", "sentence", "words"}:
+        if filters["level"] not in _VECTOR_LEVELS:
             raise ValidationError(
-                "filters.level must be 'text', 'sentence', or 'words'"
+                f"filters.level must be one of {sorted(_VECTOR_LEVELS)}"
             )
         has_vector = isinstance(payload.get("vector"), list) and bool(payload.get("vector"))
         has_prompt = isinstance(payload.get("prompt"), str) and bool(payload.get("prompt"))
