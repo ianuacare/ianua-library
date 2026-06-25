@@ -438,7 +438,7 @@ Per scrivere, cercare, elencare o cancellare embeddings nel DB vettoriale l'app 
 
 | `operation` | Campi richiesti in `input_data` | Output |
 |---|---|---|
-| `"upsert"` | `collection`, `artefatti`, `vector_field` (`text`/`sentence`/`words`) | conteggio upsert |
+| `"upsert"` | `collection`, `artefatti`, `vector_field` (`text`/`chunks`/`sentence`/`words`) | conteggio upsert |
 | `"search"` | `collection`, `filters.level`, `vector` **oppure** `prompt`, `top_k` opzionale | lista hit |
 | `"scroll"` | `collection`; opzionale `filters` (match esatto sul payload), `batch_size`, `with_vectors`, `with_payload` | lista di punti (`id`, payload e/o vector secondo i flag) |
 | `"delete"` | `collection`, `ids` **oppure** `filters` | conteggio delete |

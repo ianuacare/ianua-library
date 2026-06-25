@@ -11,10 +11,15 @@ from ianuacare.ai.providers.callable import CallableProvider
 from ianuacare.core.exceptions.errors import InferenceError, ValidationError
 
 
+def _fake_vector(item: str, index: int) -> list[float]:
+    """Deterministic 2-dim vector matching ``_fake_encoder`` for a batch item."""
+    return [float(len(item)), float(index)]
+
+
 def _fake_encoder(_: str, payload: Any) -> list[list[float]]:
     """Return a deterministic 2-dim vector for each string in the batch."""
     assert isinstance(payload, list)
-    return [[float(len(item)), float(i)] for i, item in enumerate(payload)]
+    return [_fake_vector(item, i) for i, item in enumerate(payload)]
 
 
 def _make_embedder() -> TextEmbedder:
@@ -30,12 +35,15 @@ class TestRun:
         payload = {
             "id_artefatto_trascrizione": "tr-1",
             "text": "ciao mondo",
+            "chunks": ["ciao mondo"],
             "sentences": ["ciao.", "mondo!"],
             "words": ["ciao", "mondo"],
         }
         result = embedder.run(payload)
         assert result["id_artefatto_trascrizione"] == "tr-1"
         assert result["text"] == "ciao mondo"
+        assert result["chunks"] == ["ciao mondo"]
+        assert result["chunks_vect"] == [[10.0, 0.0]]
         assert result["sentence"] == ["ciao.", "mondo!"]
         assert result["words"] == ["ciao", "mondo"]
         assert result["text_vect"] == [10.0, 0.0]
@@ -47,22 +55,57 @@ class TestRun:
         payload = {
             "id_artefatto_trascrizione": "tr-2",
             "text": "solo testo",
+            "chunks": ["solo testo"],
             "sentences": [],
             "words": [],
         }
         result = embedder.run(payload)
+        assert result["chunks"] == ["solo testo"]
+        assert result["chunks_vect"] == [[10.0, 0.0]]
         assert result["text_vect"] == [10.0, 0.0]
         assert result["sentence"] == []
         assert result["sentence_vect"] == []
         assert result["words"] == []
         assert result["words_vect"] == []
 
-    def test_defaults_missing_optional_fields(self) -> None:
+    def test_defaults_missing_chunks_to_single_text_chunk(self) -> None:
         embedder = _make_embedder()
-        payload = {"id_artefatto_trascrizione": "tr-3", "text": "x"}
-        result = embedder.run(payload)
+        result = embedder.run({"id_artefatto_trascrizione": "tr-3", "text": "x"})
+        assert result["chunks"] == ["x"]
         assert result["sentence"] == []
         assert result["words"] == []
+
+    def test_embeds_multiple_chunks_from_payload(self) -> None:
+        embedder = _make_embedder()
+        chunks = ["uno due", "tre quattro"]
+        result = embedder.run(
+            {
+                "id_artefatto_trascrizione": "tr-multi",
+                "text": "uno due tre quattro",
+                "chunks": chunks,
+            }
+        )
+        assert result["chunks"] == chunks
+        assert result["chunks_vect"] == [_fake_vector(c, i) for i, c in enumerate(chunks)]
+        assert result["text_vect"] == [9.0, 0.5]
+
+    def test_text_vect_is_mean_of_chunk_vectors(self) -> None:
+        embedder = _make_embedder()
+        chunks = ["alfa beta", "gamma delta"]
+        result = embedder.run(
+            {
+                "id_artefatto_trascrizione": "tr-mean",
+                "text": "alfa beta gamma delta",
+                "chunks": chunks,
+            }
+        )
+        chunks_vect = result["chunks_vect"]
+        dimension = len(chunks_vect[0])
+        expected = [
+            sum(vec[i] for vec in chunks_vect) / len(chunks_vect)
+            for i in range(dimension)
+        ]
+        assert result["text_vect"] == expected
 
     def test_invokes_provider_with_single_batch(self) -> None:
         captured: list[Any] = []
@@ -76,6 +119,7 @@ class TestRun:
             {
                 "id_artefatto_trascrizione": "tr-4",
                 "text": "A",
+                "chunks": ["A"],
                 "sentences": ["B", "C"],
                 "words": ["D"],
             }
@@ -100,6 +144,16 @@ class TestValidation:
         with pytest.raises(ValidationError):
             _make_embedder().run(
                 {"id_artefatto_trascrizione": "tr", "text": 123}
+            )
+
+    def test_rejects_non_list_chunks(self) -> None:
+        with pytest.raises(ValidationError):
+            _make_embedder().run(
+                {
+                    "id_artefatto_trascrizione": "tr",
+                    "text": "x",
+                    "chunks": "bad",
+                }
             )
 
     def test_rejects_non_list_sentences(self) -> None:
@@ -140,6 +194,7 @@ class TestProviderErrors:
                 {
                     "id_artefatto_trascrizione": "tr",
                     "text": "x",
+                    "chunks": ["x"],
                     "sentences": ["a", "b"],
                 }
             )

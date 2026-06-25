@@ -10,7 +10,7 @@ from ianuacare.infrastructure.storage.bucket import BucketClient
 from ianuacare.infrastructure.storage.database import DatabaseClient
 from ianuacare.infrastructure.storage.vector import VectorDatabaseClient
 
-_VALID_LEVELS: frozenset[str] = frozenset({"text", "sentence", "words"})
+_VALID_LEVELS: frozenset[str] = frozenset({"text", "chunks", "sentence", "words"})
 
 
 class Reader:
@@ -72,8 +72,8 @@ class Reader:
         """Search the vector collection restricted to ``filters['level']``.
 
         ``filters`` is required and must contain a ``level`` key whose value
-        is one of ``text``, ``sentence``, ``words`` (the levels produced by
-        the ``text_embedder`` pipeline). Additional keys in ``filters`` are
+        is one of ``text``, ``chunks``, ``sentence``, ``words`` (the levels
+        produced by the ``text_embedder`` pipeline). Additional keys in ``filters`` are
         forwarded as exact-match conditions to the backend.
         """
         if self._vector is None:

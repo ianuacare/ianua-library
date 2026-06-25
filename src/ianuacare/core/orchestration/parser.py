@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ianuacare.ai.text import clean_text, split_sentences, split_words
+from ianuacare.ai.text import DEFAULT_MAX_TOKENS, chunk_text, clean_text, split_sentences, split_words
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.packet import DataPacket
 
@@ -23,6 +23,17 @@ def _render_value(value: Any) -> str:
 
 class InputDataParser:
     """Transforms ``validated_data`` into ``parsed_data`` (e.g. JSON, clinical text)."""
+
+    def __init__(
+        self,
+        *,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+        tokenizer: Any | None = None,
+    ) -> None:
+        if max_tokens < 1:
+            raise ValidationError("max_tokens must be a positive integer")
+        self._max_tokens = max_tokens
+        self._tokenizer = tokenizer
 
     def parse(self, packet: DataPacket, *, model_key: str | None = None) -> DataPacket:
         """Default: pass-through copy of ``validated_data``."""
@@ -69,6 +80,47 @@ class InputDataParser:
             return self._parse_text_embedder(validated)
 
         return validated
+
+    def _parse_text_embedder(self, validated: Any) -> dict[str, Any]:
+        """Clean text, split into sentences/words, and chunk for embedding."""
+        if not isinstance(validated, dict):
+            raise ValidationError("validated_data must be a mapping for text_embedder")
+        artefact_id = validated.get("id_artefatto_trascrizione")
+        text = validated.get("text")
+        if not isinstance(artefact_id, str) or not artefact_id.strip():
+            raise ValidationError("id_artefatto_trascrizione is required for text_embedder")
+        if not isinstance(text, str) or not text.strip():
+            raise ValidationError("validated_data.text is required for text_embedder")
+
+        split_sentences_flag = bool(validated.get("split_sentences", True))
+        split_words_flag = bool(validated.get("split_words", False))
+        lowercase = bool(validated.get("lowercase", False))
+        remove_stopwords = bool(validated.get("remove_stopwords", True))
+
+        cleaned = clean_text(
+            text,
+            lowercase=lowercase,
+            remove_stopwords=remove_stopwords,
+        )
+        sentences = split_sentences(cleaned) if split_sentences_flag else []
+        words = split_words(cleaned) if split_words_flag else []
+        chunks = chunk_text(
+            cleaned,
+            max_tokens=self._max_tokens,
+            tokenizer=self._tokenizer,
+        )
+
+        result: dict[str, Any] = {
+            "id_artefatto_trascrizione": artefact_id,
+            "text": cleaned,
+            "chunks": chunks,
+            "sentences": sentences,
+            "words": words,
+        }
+        mt = validated.get("model_type")
+        if isinstance(mt, str) and mt.strip():
+            result["model_type"] = mt.strip().lower()
+        return result
 
     def _parse_llm_input(self, validated: Any) -> dict[str, Any]:
         """Build the LLM payload, branching on which inputs are present.
@@ -148,37 +200,6 @@ class InputDataParser:
             sections.append(f"[{label}]\n{_render_value(value)}")
         sections.append(f"[QUESTION]\n{text}")
         return "\n\n".join(sections)
-
-    @staticmethod
-    def _parse_text_embedder(validated: Any) -> dict[str, Any]:
-        """Clean text and optionally split into sentences and words for embedding."""
-        if not isinstance(validated, dict):
-            raise ValidationError("validated_data must be a mapping for text_embedder")
-        artefact_id = validated.get("id_artefatto_trascrizione")
-        text = validated.get("text")
-        if not isinstance(artefact_id, str) or not artefact_id.strip():
-            raise ValidationError("id_artefatto_trascrizione is required for text_embedder")
-        if not isinstance(text, str) or not text.strip():
-            raise ValidationError("validated_data.text is required for text_embedder")
-
-        split_sentences_flag = bool(validated.get("split_sentences", True))
-        split_words_flag = bool(validated.get("split_words", False))
-        lowercase = bool(validated.get("lowercase", False))
-
-        cleaned = clean_text(text, lowercase=lowercase)
-        sentences = split_sentences(cleaned) if split_sentences_flag else []
-        words = split_words(cleaned) if split_words_flag else []
-
-        result: dict[str, Any] = {
-            "id_artefatto_trascrizione": artefact_id,
-            "text": cleaned,
-            "sentences": sentences,
-            "words": words,
-        }
-        mt = validated.get("model_type")
-        if isinstance(mt, str) and mt.strip():
-            result["model_type"] = mt.strip().lower()
-        return result
 
 
 _JSON_SCHEMA_TYPE_MAP: dict[str, tuple[type, ...]] = {

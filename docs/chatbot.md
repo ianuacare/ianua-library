@@ -14,7 +14,7 @@ from ianuacare.core.chatbot.chatbot import ConversationState
 
 | Concern | Implementation |
 |---------|----------------|
-| Retrieval | `Reader.read_vector_search` (`filters.level` required: `text`, `sentence`, or `words`) |
+| Retrieval | `Reader.read_vector_search` (`filters.level` required: `text`, `chunks`, `sentence`, or `words`) |
 | Ranking across turns | Merge **new hits** with `ConversationState.retrieved_pool`, dedupe by point `id`, apply **score decay** on older-only hits, keep top `rerank_top_k` |
 | Conversation | `ConversationState.context` as `list[Message]` (`user` / `assistant` / optional `system`), optional rolling `summary` when character budget is exceeded |
 | Latency / resilience | Retries with exponential backoff on retrieval and LLM (`ValidationError` is **not** retried) |

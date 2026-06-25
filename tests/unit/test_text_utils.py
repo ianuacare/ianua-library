@@ -21,6 +21,25 @@ class TestCleanText:
     def test_lowercase_flag(self) -> None:
         assert clean_text("Ciao Mondo", lowercase=True) == "ciao mondo"
 
+    def test_remove_stopwords_flag(self) -> None:
+        assert (
+            clean_text("Il paziente ha un dolore al braccio", remove_stopwords=True)
+            == "paziente ha dolore braccio"
+        )
+
+    def test_remove_stopwords_with_lowercase(self) -> None:
+        assert (
+            clean_text(
+                "Il Paziente ha un Dolore",
+                lowercase=True,
+                remove_stopwords=True,
+            )
+            == "paziente ha dolore"
+        )
+
+    def test_remove_stopwords_empty_when_only_stopwords(self) -> None:
+        assert clean_text("il e la", remove_stopwords=True) == ""
+
     def test_empty_string(self) -> None:
         assert clean_text("") == ""
 

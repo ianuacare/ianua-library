@@ -36,24 +36,28 @@ class Orchestrator:
         self._cache_ttl_seconds = cache_ttl_seconds
 
     def embed_text(self, text: str, context: RequestContext) -> list[float]:
-        """Run the ``text_embedder`` model on ``text`` and return the top-level vector.
+        """Run ``text_embedder`` on ``text`` and return the top-level vector.
 
-        Useful when a downstream flow (e.g. vector search) needs to turn a
-        prompt into an embedding without executing the full pipeline.
+        Input is prepared via :meth:`InputDataParser` (including token-based
+        chunking). The returned vector is ``text_vect``, the mean of chunk
+        embeddings.
         """
         _ = context  # kept for symmetry with other orchestration entrypoints
         if "text_embedder" not in self._models:
             raise OrchestrationError("text_embedder model is not registered")
         if not isinstance(text, str) or not text.strip():
             raise OrchestrationError("text must be a non-empty string")
-        payload = {
-            "id_artefatto_trascrizione": "prompt",
-            "text": text,
-            "sentences": [],
-            "words": [],
-        }
+        packet = DataPacket(
+            validated_data={
+                "id_artefatto_trascrizione": "prompt",
+                "text": text,
+                "split_sentences": False,
+                "split_words": False,
+            }
+        )
+        self._input_parser.parse(packet, model_key="text_embedder")
         try:
-            result = self._models["text_embedder"].run(payload)
+            result = self._models["text_embedder"].run(packet.parsed_data)
         except Exception as exc:
             raise InferenceError("text_embedder inference failed") from exc
         vector = result.get("text_vect") if isinstance(result, dict) else None

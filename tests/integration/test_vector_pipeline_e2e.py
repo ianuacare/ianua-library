@@ -86,6 +86,7 @@ def test_embed_upsert_search_delete_flow() -> None:
             "id_artefatto_trascrizione": "tr-42",
             "text": "Paziente con diabete. Nessuna ipertensione riscontrata.",
             "split_sentences": True,
+            "remove_stopwords": False,
         },
         ctx,
     )
@@ -94,6 +95,7 @@ def test_embed_upsert_search_delete_flow() -> None:
     assert len(artefatti) == 1
     artefact = artefatti[0]
     assert artefact["id_artefatto_trascrizione"] == "tr-42"
+    assert artefact["chunks"] == ["Paziente con diabete. Nessuna ipertensione riscontrata."]
     assert artefact["sentence"] == [
         "Paziente con diabete.",
         "Nessuna ipertensione riscontrata.",

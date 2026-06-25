@@ -114,3 +114,37 @@ def test_execute_invalid_output_schema_type_raises() -> None:
     orch = _build_orchestrator({"llm": LLMStubModel({"summary": "ciao"})})
     with pytest.raises(OrchestrationError):
         orch.execute(p, ctx)
+
+
+class TextEmbedderStubModel(BaseAIModel):
+    def run(self, payload: object) -> dict:
+        assert isinstance(payload, dict)
+        text = str(payload.get("text", ""))
+        chunks = payload.get("chunks")
+        assert isinstance(chunks, list) and chunks == [text]
+        return {
+            "id_artefatto_trascrizione": payload.get("id_artefatto_trascrizione"),
+            "text": text,
+            "text_vect": [1.0, 0.0],
+            "chunks": chunks,
+            "chunks_vect": [[1.0, 0.0]],
+            "sentence": [],
+            "sentence_vect": [],
+            "words": [],
+            "words_vect": [],
+        }
+
+
+def test_embed_text_returns_top_level_vector() -> None:
+    u = User("u1", "r", [])
+    ctx = RequestContext(u, "p", {})
+    orch = _build_orchestrator({"text_embedder": TextEmbedderStubModel()})
+    assert orch.embed_text("ciao mondo", ctx) == [1.0, 0.0]
+
+
+def test_embed_text_requires_registered_model() -> None:
+    u = User("u1", "r", [])
+    ctx = RequestContext(u, "p", {})
+    orch = _build_orchestrator({})
+    with pytest.raises(OrchestrationError):
+        orch.embed_text("x", ctx)

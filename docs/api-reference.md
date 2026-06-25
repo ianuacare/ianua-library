@@ -185,7 +185,7 @@ Compatibility facade composing `PipelineModel` (inference) and `PipelineDatabase
   - write ops: `upsert` / `delete` use `Writer`
   - read ops: `search` and `scroll` use `Reader`
   - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via the injected `embed_text_fn`, defaulted to `Orchestrator.embed_text` by `create_stack`)
-  - `search`: `filters.level` is required (`text`, `sentence`, `words`)
+  - `search`: `filters.level` is required (`text`, `chunks`, `sentence`, `words`)
   - `scroll`: lists all points in the collection (paginated internally); optional `filters` for exact-match payload fields; with `QdrantDatabaseClient`, uses the official client's `scroll` API until all pages are consumed
 - `run_bucket(operation, input_data, context, *, content_type: "audio" | "text", bucket_name: str | None = None) -> DataPacket` — object storage + DB metadata for **audio** (`.wav` / `.mp3`) or **text** (`.txt` / `.md`). Operations: `prepare_upload`, `upload_direct`, `retrieve`. Audit events: `pipeline_bucket_started` / `pipeline_bucket_completed` (with `content_type` in details). If `bucket_name` is set, it is stored on `packet.metadata["bucket_name"]` for custom routing.
 
@@ -341,7 +341,7 @@ Raises `StorageError` on failure.
 - `read_one(collection, *, lookup_field, lookup_value, context) -> dict | None`
 - `read_many(collection, *, filters, context) -> list[dict]`
 - `read_vector_search(collection, *, vector, top_k=10, filters, score_threshold=None, context) -> list[dict]`
-  - requires `filters.level` (`text`, `sentence`, `words`)
+  - requires `filters.level` (`text`, `chunks`, `sentence`, `words`)
 - `read_vector_scroll(collection, *, filters=None, batch_size=256, with_vectors=False, with_payload=True, context) -> list[dict]` — full collection scan via `VectorDatabaseClient.scroll` (no `filters.level` requirement; optional `filters` are exact-match on payload keys when provided)
 
 Reads through the configured `DatabaseClient`; raises `StorageError` on failure.
@@ -390,7 +390,7 @@ Module path: `ianuacare.core.chatbot.chatbot`
 - `ainference(...) -> str` — async turn (`read_vector_search` runs in a thread pool; `llm.arun` with async retry).
 - `astream(...) -> AsyncIterator[str]` — stream assistant fragments, then finalize with `finalize_stream_text`, then update state once (same atomicity rules as sync).
 
-Retrieval uses `Reader.read_vector_search` (requires `filters["level"]` in `text` / `sentence` / `words`). Cross-turn reranking merges new hits with `retrieved_pool`, dedupes by `id`, applies decay on points from earlier turns only, keeps top `rerank_top_k`. State is updated **only after** a successful LLM response. `Writer.write_log` receives a **non-PHI** JSON line (turn index and content lengths only by default).
+Retrieval uses `Reader.read_vector_search` (requires `filters["level"]` in `text` / `chunks` / `sentence` / `words`). Cross-turn reranking merges new hits with `retrieved_pool`, dedupes by `id`, applies decay on points from earlier turns only, keeps top `rerank_top_k`. State is updated **only after** a successful LLM response. `Writer.write_log` receives a **non-PHI** JSON line (turn index and content lengths only by default).
 
 ## Config
 
