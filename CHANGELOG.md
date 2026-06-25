@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Vector upsert**: `DataValidator` now accepts `vector_field: "chunks"` on `run_vector("upsert", ...)` (aligned with `Writer.write_vector_upsert` and `Reader.read_vector_search`); one Qdrant point per chunk with id `{id_artefatto_trascrizione}:chunks:{index}`.
 - **Audio emotion (REST-hosted)**: `RestHostedModelProvider` and `RestRequest` (`ianuacare.ai.providers`) with injectable `build_request`, `parse_response`, and `post_fn` (default stdlib HTTP). `AudioEmotionModel` (`ianuacare.ai.models.inference`) extends `NLPModel` and normalizes arousal/dominance/valence via `ModelOutNormalizer.normalize_audio_emotion`. Documentation: [Audio emotion](docs/audio-emotion.md).
 
 ## 0.3.0 - 2026-05-04

@@ -158,7 +158,7 @@ pipe = Pipeline(
     AuditService(db),
 )
 
-# upsert one artefact at text level
+# upsert one artefact (`vector_field`: text | chunks | sentence | words)
 pipe.run_vector(
     "upsert",
     {

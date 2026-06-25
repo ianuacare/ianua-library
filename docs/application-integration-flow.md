@@ -445,12 +445,14 @@ Per scrivere, cercare, elencare o cancellare embeddings nel DB vettoriale l'app 
 
 ### Esempio: upsert
 
+`vector_field` seleziona il livello da indicizzare: un punto per artefatto con `"text"`, un punto per elemento di lista con `"chunks"`, `"sentence"` o `"words"`. Gli artefatti prodotti da `text_embedder` contengono già tutti i livelli (`chunks`/`chunks_vect`, `sentence`/`sentence_vect`, ecc.).
+
 ```python
 packet = pipeline.run_vector(
     "upsert",
     {
         "collection": "clinical_notes",
-        "vector_field": "sentence",
+        "vector_field": "chunks",  # oppure "text", "sentence", "words"
         "artefatti": artefatti,
     },
     context,

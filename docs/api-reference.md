@@ -185,6 +185,7 @@ Compatibility facade composing `PipelineModel` (inference) and `PipelineDatabase
   - write ops: `upsert` / `delete` use `Writer`
   - read ops: `search` and `scroll` use `Reader`
   - `search` supports `vector` (precomputed) or `prompt` (embedded on-the-fly via the injected `embed_text_fn`, defaulted to `Orchestrator.embed_text` by `create_stack`)
+  - `upsert`: `vector_field` is required (`text`, `chunks`, `sentence`, `words`); `text` stores one point per artefact, the other levels store one point per list element
   - `search`: `filters.level` is required (`text`, `chunks`, `sentence`, `words`)
   - `scroll`: lists all points in the collection (paginated internally); optional `filters` for exact-match payload fields; with `QdrantDatabaseClient`, uses the official client's `scroll` API until all pages are consumed
 - `run_bucket(operation, input_data, context, *, content_type: "audio" | "text", bucket_name: str | None = None) -> DataPacket` — object storage + DB metadata for **audio** (`.wav` / `.mp3`) or **text** (`.txt` / `.md`). Operations: `prepare_upload`, `upload_direct`, `retrieve`. Audit events: `pipeline_bucket_started` / `pipeline_bucket_completed` (with `content_type` in details). If `bucket_name` is set, it is stored on `packet.metadata["bucket_name"]` for custom routing.
@@ -332,6 +333,7 @@ Module path: `ianuacare.infrastructure.storage`
 - Optional `vector_client: VectorDatabaseClient | None` at constructor time.
 - Vector write methods:
   - `write_vector_upsert(collection, artefatti, *, vector_field, context) -> dict`
+    - `vector_field`: `text`, `chunks`, `sentence`, or `words` (maps to `{level}` / `{level}_vect` keys on each artefact)
   - `write_vector_delete(collection, *, ids=None, filters=None, context) -> dict`
 
 Raises `StorageError` on failure.
