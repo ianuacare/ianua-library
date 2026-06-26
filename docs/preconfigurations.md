@@ -25,8 +25,38 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 
 ### :material-robot-outline: AI provider
 
-- :material-brain: `TogetherAIProvider` (`ianuacare.ai.providers`) for Together chat inference.
+- :material-brain: `TogetherAIProvider` (`ianuacare.ai.providers`) for Together chat inference and embeddings (`pip install "ianuacare[together]"`).
 - :material-api: `RestHostedModelProvider` (`ianuacare.ai.providers`) for custom REST-hosted models (injectable request/response hooks; stdlib HTTP).
+
+#### LLM generation parameters
+
+`LLMModel` accepts construction-time keyword arguments for generation: `temperature` (default `0.7`), `top_p` (default `1.0`), `top_k`, `max_tokens`, `stop`, `seed`, `frequency_penalty`, `presence_penalty`, `repetition_penalty`, `reasoning_effort`, `reasoning_enabled`, `response_format`, and `extra` (provider-specific passthrough, e.g. Together `chat_template_kwargs`).
+
+```python
+import os
+
+from ianuacare import LLMModel, ModelOutNormalizer, TogetherAIProvider
+
+together = TogetherAIProvider(
+    api_key=os.environ["TOGETHER_API_KEY"],
+    default_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    default_params={"temperature": 0.3},  # optional provider-level defaults
+)
+
+llm = LLMModel(
+    together,
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    ModelOutNormalizer(),
+    temperature=0.2,
+    top_p=0.9,
+    reasoning_effort="medium",
+    response_format={"type": "json_object"},
+)
+```
+
+Provider-agnostic: each backend maps supported keys; unset params are omitted (except `LLMModel` defaults for `temperature` / `top_p`). `response_format` steers the provider API; pipeline validation uses `context.metadata["output_schema"]` separately.
+
+Full reference: [LLM generation parameters](llm-generation-params.md).
 
 ### :material-microphone: Speech (transcription / diarization / transcript summary)
 

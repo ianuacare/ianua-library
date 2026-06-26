@@ -50,7 +50,20 @@ from ianuacare import (
 
 # LLM (generazione testo, riassunti)
 llm_provider = CallableProvider(lambda model, payload: {"text": "summary..."})
-llm = LLMModel(llm_provider, "gpt-4", ModelOutNormalizer())
+# I parametri di generazione si impostano alla costruzione del modello.
+# Vengono inviati solo quelli valorizzati (gli altri usano i default del modello);
+# `temperature` e `top_p` hanno un default integrato.
+llm = LLMModel(
+    llm_provider,
+    "gpt-4",
+    ModelOutNormalizer(),
+    temperature=0.2,
+    top_p=0.9,
+    reasoning_effort="medium",          # "low" | "medium" | "high"
+    reasoning_enabled=True,             # toggle per i modelli "hybrid"
+    response_format={"type": "json_object"},  # output format (structured outputs)
+    extra={"chat_template_kwargs": {"thinking": True}},  # knob provider-specifici
+)
 
 # Diarizzazione (trascrizione audio + speaker)
 speech_provider = SpeechTranscriptionProvider(client=openai_client, model="whisper-1")
@@ -70,6 +83,47 @@ ranked_label_clusterer = RankedLabelClusterer(text_embedder=text_embedder)
 # Audio emotion (REST-hosted endpoint — vedi docs/audio-emotion.md)
 # emotion_provider = RestHostedModelProvider(endpoint_url=..., build_request=..., api_key=...)
 # audio_emotion = AudioEmotionModel(emotion_provider, "emotion-model-id", ModelOutNormalizer())
+```
+
+#### Parametri di generazione LLM
+
+I parametri (`temperature`, `top_p`, `max_tokens`, `reasoning_effort`, `response_format`, ecc.) si impostano **solo alla costruzione** di `LLMModel`, non per singola richiesta. Vengono inoltrati al provider su ogni chiamata.
+
+| Parametro | Default su `LLMModel` | Note |
+|-----------|----------------------|------|
+| `temperature` | `0.7` | Passa `None` per usare il default del modello remoto |
+| `top_p` | `1.0` | Di solito si regola `temperature` **oppure** `top_p` |
+| `max_tokens`, `stop`, `seed` | non inviati | Impostali solo se servono |
+| `frequency_penalty`, `presence_penalty`, `repetition_penalty` | non inviati | Anti-ripetizione; preferirne uno |
+| `reasoning_effort` | non inviato | `"low"` \| `"medium"` \| `"high"` (modelli reasoning) |
+| `reasoning_enabled` | non inviato | `True` / `False` per modelli hybrid |
+| `response_format` | non inviato | Output strutturato lato **provider** (es. JSON) |
+| `extra` | non inviato | Chiavi provider-specific (es. `chat_template_kwargs`) |
+
+`response_format` e `context.metadata["output_schema"]` sono **indipendenti**: il primo guida la generazione API; il secondo valida il risultato in pipeline. Riferimento completo: [LLM generation parameters](llm-generation-params.md).
+
+Esempio produzione con Together:
+
+```python
+import os
+
+from ianuacare import LLMModel, ModelOutNormalizer, TogetherAIProvider
+
+together = TogetherAIProvider(
+    api_key=os.environ["TOGETHER_API_KEY"],
+    default_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+)
+
+llm = LLMModel(
+    together,
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    ModelOutNormalizer(),
+    temperature=0.2,
+    top_p=0.9,
+    max_tokens=2048,
+    reasoning_effort="medium",
+    response_format={"type": "json_object"},
+)
 ```
 
 ### Pipeline e autenticazione (il collante)
@@ -227,6 +281,8 @@ sequenceDiagram
 
 ### Esempio: generare un riassunto con LLM
 
+I parametri di generazione (temperature, output format, ecc.) sono gia' configurati su `LLMModel` al setup (sezione 1). La pipeline riceve solo il testo da elaborare.
+
 ```python
 context = RequestContext(
     user=user,
@@ -239,6 +295,23 @@ packet = pipeline.run_model(
 )
 print(packet.inference_result)
 # {"text": "- punto A\n- punto B", "key_points": ["punto A", "punto B"]}
+```
+
+Con validazione output strutturato (schema in pipeline, indipendente da `response_format`):
+
+```python
+context = RequestContext(
+    user=user,
+    product="my-product",
+    metadata={
+        "model_key": "llm",
+        "output_schema": {
+            "required": ["summary"],
+            "properties": {"summary": {"type": "string"}},
+        },
+    },
+)
+packet = pipeline.run_model({"text": "Testo clinico..."}, context)
 ```
 
 ### Esempio: diarizzazione audio

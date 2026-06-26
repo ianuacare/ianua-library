@@ -243,10 +243,11 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
 - `AudioEmotionModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_audio_emotion` (arousal, dominance, valence).
-- `LLMModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_summary`.
-- `LLMModel.stream(payload) -> Iterator[str]` — text fragments from `AIProvider.infer_stream`.
-- `LLMModel.arun(payload) -> dict` — async via `AIProvider.ainfer` + `normalize_summary`.
-- `LLMModel.astream(payload) -> AsyncIterator[str]` — chunks from `AIProvider.ainfer_stream`.
+- `LLMModel(provider, model_name, normalizer, *, temperature=0.7, top_p=1.0, top_k=None, max_tokens=None, stop=None, seed=None, frequency_penalty=None, presence_penalty=None, repetition_penalty=None, reasoning_effort=None, reasoning_enabled=None, response_format=None, extra=None)` — construction-time generation parameters; only non-`None` values are forwarded as `params` to the provider. Set `temperature=None` / `top_p=None` to omit built-in defaults. Property `params` returns a read-only copy. See [LLM generation parameters](llm-generation-params.md).
+- `LLMModel.run(payload) -> dict` — `infer(..., params=self._params)` + `ModelOutNormalizer.normalize_summary`.
+- `LLMModel.stream(payload) -> Iterator[str]` — text fragments from `AIProvider.infer_stream(..., params=self._params)`.
+- `LLMModel.arun(payload) -> dict` — async via `AIProvider.ainfer(..., params=self._params)` + `normalize_summary`.
+- `LLMModel.astream(payload) -> AsyncIterator[str]` — chunks from `AIProvider.ainfer_stream(..., params=self._params)`.
 - `LLMModel.finalize_stream_text(text) -> dict` — normalizes assembled stream text like `run`.
 - `TextEmbedder.run(payload) -> dict` — returns text/sentence/word vectors in a normalized artefact shape.
 - `SpeakerEmbedder.run(payload) -> list[float] | list[list[float]]` — MFCC-based embedding per segment (batch via `segments` key); requires `audio_path`; uses librosa only.
@@ -264,14 +265,14 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 
 ### Providers (`ianuacare.ai.providers`)
 
-- `AIProvider.infer(model_name, payload) -> Any` — provider contract (raw output).
-- `AIProvider.infer_stream(model_name, payload) -> Iterator[str]` — optional streaming; default yields one chunk from `infer`.
-- `AIProvider.ainfer(model_name, payload)` — async; default runs `infer` in a worker thread.
-- `AIProvider.ainfer_stream(model_name, payload) -> AsyncIterator[str]` — async stream; default materializes `infer_stream` in a thread.
-- `CallableProvider` — callable-backed provider for tests.
-- `TogetherAIProvider` — Together chat completions adapter.
-- `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio).
-- `RestHostedModelProvider` — POST to a hosted REST endpoint via injectable `build_request` / `parse_response` / `post_fn`.
+- `AIProvider.infer(model_name, payload, *, model_type=None, params=None) -> Any` — provider contract (raw output). `params` is an optional generic generation mapping (for example `temperature`, `top_p`, `reasoning_effort`, `response_format`); each provider maps supported keys to its backend.
+- `AIProvider.infer_stream(model_name, payload, *, model_type=None, params=None) -> Iterator[str]` — optional streaming; default yields one chunk from `infer`.
+- `AIProvider.ainfer(model_name, payload, *, model_type=None, params=None)` — async; default runs `infer` in a worker thread.
+- `AIProvider.ainfer_stream(model_name, payload, *, model_type=None, params=None) -> AsyncIterator[str]` — async stream; default materializes `infer_stream` in a thread.
+- `CallableProvider` — callable-backed provider for tests (`params` accepted, ignored).
+- `TogetherAIProvider(api_key, default_model, *, default_params=None)` — Together chat completions adapter; merges `default_params` with per-call `params` (per-call wins). Maps `reasoning_enabled` → `reasoning={"enabled": ...}` and spreads `extra`. Embeddings ignore `params`.
+- `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio; `params` accepted, ignored).
+- `RestHostedModelProvider` — POST to a hosted REST endpoint via injectable `build_request` / `parse_response` / `post_fn`; merges `params` into dict payloads before `build_request`.
 - `RestRequest` — dataclass (`url`, `headers`, `body`, `method`) returned by `build_request`.
 
 ### Parsers (`ianuacare.ai.parsers`)
@@ -386,7 +387,7 @@ Methods include `merge_and_rerank(...)`, `prune_pool(...)`, `append_turn(...)`, 
 
 Module path: `ianuacare.core.chatbot.chatbot`
 
-- Constructor: `reader: Reader`, `writer: Writer`, `llm: LLMModel`, keyword-only `collection`, `filters`, optional `top_k`, `score_threshold`, `rerank_top_k`, `score_decay`, `pool_max_size`, `max_context_chars`, `system_prompt`, `max_retries`, `retry_base_delay`.
+- Constructor: `reader: Reader`, `writer: Writer`, `llm: LLMModel` (configure generation parameters on `LLMModel` at construction — see [LLM generation parameters](llm-generation-params.md)), keyword-only `collection`, `filters`, optional `top_k`, `score_threshold`, `rerank_top_k`, `score_decay`, `pool_max_size`, `max_context_chars`, `system_prompt`, `max_retries`, `retry_base_delay`.
 - `state: ConversationState` — public session handle.
 - `inference(query, query_vector, context_request: RequestContext) -> str` — synchronous turn.
 - `ainference(...) -> str` — async turn (`read_vector_search` runs in a thread pool; `llm.arun` with async retry).

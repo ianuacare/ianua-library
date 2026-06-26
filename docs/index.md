@@ -20,6 +20,7 @@ information (PHI) into logs.
 | [RAG chatbot](chatbot.md) | `Chatbot`, cross-turn retrieval pool, sync/async/stream |
 | [Getting started](getting-started.md) | Install, minimal example |
 | [Application integration flow](application-integration-flow.md) | End-to-end app wiring for model/CRUD/audio/vector flows |
+| [LLM generation parameters](llm-generation-params.md) | `temperature`, `top_p`, reasoning, `response_format`, provider mapping |
 | [Audio transcription and diarization](audio-diarization.md) | `ianuacare.ai.models.inference` + providers/normalizer, pluggable ASR and session artifacts |
 | [Audio emotion (REST-hosted)](audio-emotion.md) | `AudioEmotionModel` + `RestHostedModelProvider` for arousal/dominance/valence via HTTP |
 | [API reference](api-reference.md) | Public classes and methods |

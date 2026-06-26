@@ -337,6 +337,7 @@ The persistence policy is explicit: model `run()` returns output only; writing i
 
 ## Next steps
 
+- Read [LLM generation parameters](llm-generation-params.md) for `temperature`, reasoning, and structured output on `LLMModel`.
 - Read [Audio transcription and diarization](audio-diarization.md) for reusable
   speech pipeline primitives under `ianuacare.ai.models.inference`.
 - Read [API reference](api-reference.md) for class details.
