@@ -98,3 +98,87 @@ def test_together_infer_stream_rejects_embeddings() -> None:
         provider = TogetherAIProvider(api_key="k", default_model="m")
         with pytest.raises(TypeError):
             next(provider.infer_stream("m", ["x"], model_type="embedding"))
+
+
+def _chat_provider() -> tuple[TogetherAIProvider, MagicMock]:
+    mock_together_cls = MagicMock()
+    client = MagicMock()
+    mock_together_cls.return_value = client
+    response = MagicMock()
+    response.choices = [MagicMock(message=MagicMock(content="ok"))]
+    response.model_dump.return_value = {}
+    client.chat.completions.create.return_value = response
+    with patch.object(together_module, "Together", mock_together_cls):
+        provider = TogetherAIProvider(api_key="k", default_model="m")
+    return provider, client
+
+
+def test_together_maps_sampling_and_output_params() -> None:
+    provider, client = _chat_provider()
+    params = {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "max_tokens": 256,
+        "response_format": {"type": "json_object"},
+        "reasoning_effort": "medium",
+    }
+
+    provider.infer("m", "hello", params=params)
+
+    sent = client.chat.completions.create.call_args.kwargs
+    assert sent["temperature"] == 0.2
+    assert sent["top_p"] == 0.9
+    assert sent["max_tokens"] == 256
+    assert sent["response_format"] == {"type": "json_object"}
+    assert sent["reasoning_effort"] == "medium"
+
+
+def test_together_maps_reasoning_enabled_to_toggle() -> None:
+    provider, client = _chat_provider()
+
+    provider.infer("m", "hello", params={"reasoning_enabled": True})
+
+    sent = client.chat.completions.create.call_args.kwargs
+    assert sent["reasoning"] == {"enabled": True}
+    assert "reasoning_enabled" not in sent
+
+
+def test_together_spreads_extra_params() -> None:
+    provider, client = _chat_provider()
+
+    provider.infer("m", "hello", params={"extra": {"chat_template_kwargs": {"thinking": True}}})
+
+    sent = client.chat.completions.create.call_args.kwargs
+    assert sent["chat_template_kwargs"] == {"thinking": True}
+    assert "extra" not in sent
+
+
+def test_together_omits_unset_params() -> None:
+    provider, client = _chat_provider()
+
+    provider.infer("m", "hello")
+
+    sent = client.chat.completions.create.call_args.kwargs
+    assert set(sent) == {"model", "messages"}
+
+
+def test_together_per_call_params_override_constructor_defaults() -> None:
+    mock_together_cls = MagicMock()
+    client = MagicMock()
+    mock_together_cls.return_value = client
+    response = MagicMock()
+    response.choices = [MagicMock(message=MagicMock(content="ok"))]
+    response.model_dump.return_value = {}
+    client.chat.completions.create.return_value = response
+
+    with patch.object(together_module, "Together", mock_together_cls):
+        provider = TogetherAIProvider(
+            api_key="k",
+            default_model="m",
+            default_params={"temperature": 0.1, "max_tokens": 100},
+        )
+        provider.infer("m", "hello", params={"temperature": 0.9})
+
+    sent = client.chat.completions.create.call_args.kwargs
+    assert sent["temperature"] == 0.9
+    assert sent["max_tokens"] == 100
