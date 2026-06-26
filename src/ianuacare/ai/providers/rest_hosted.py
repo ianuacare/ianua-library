@@ -116,11 +116,21 @@ class RestHostedModelProvider(AIProvider):
         self._timeout_seconds = timeout_seconds
 
     def infer(
-        self, model_name: str, payload: Any, *, model_type: str | None = None
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         _ = model_type
         if not isinstance(payload, dict):
             raise ValueError("REST hosted model payload must be a mapping")
+
+        if params:
+            # Merge generic generation params into the payload so ``build_request``
+            # can forward them to the hosted endpoint. Explicit payload keys win.
+            payload = {**params, **payload}
 
         rest_request = self._build_request(model_name, payload)
         url = rest_request.url or self._endpoint_url

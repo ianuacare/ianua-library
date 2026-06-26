@@ -12,35 +12,66 @@ class AIProvider(ABC):
     """Common contract for provider-side inference."""
 
     @abstractmethod
-    def infer(self, model_name: str, payload: Any, *, model_type: str | None = None) -> Any:
+    def infer(
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
         """Return raw backend output for ``model_name`` and ``payload``.
 
         ``model_type`` hints the backend modality (for example ``"embedding"`` vs chat);
         providers that only support one mode may ignore it.
+
+        ``params`` is a generic, provider-agnostic mapping of generation knobs
+        (for example ``temperature``, ``top_p``, ``reasoning_effort``,
+        ``response_format``). Each provider maps the keys it understands onto its
+        own backend and ignores the rest.
         """
         ...
 
     def infer_stream(
-        self, model_name: str, payload: Any, *, model_type: str | None = None
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Iterator[str]:
         """Stream text chunks for ``model_name``; default wraps a single ``infer`` call."""
-        raw = self.infer(model_name, payload, model_type=model_type)
+        raw = self.infer(model_name, payload, model_type=model_type, params=params)
         text = self._raw_to_stream_text(raw)
         if text:
             yield text
 
     async def ainfer(
-        self, model_name: str, payload: Any, *, model_type: str | None = None
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         """Async inference; default runs ``infer`` in a thread."""
-        return await asyncio.to_thread(self.infer, model_name, payload, model_type=model_type)
+        return await asyncio.to_thread(
+            self.infer, model_name, payload, model_type=model_type, params=params
+        )
 
     async def ainfer_stream(
-        self, model_name: str, payload: Any, *, model_type: str | None = None
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> AsyncIterator[str]:
         """Async text stream; default materializes ``infer_stream`` in a worker thread."""
         chunks: list[str] = await asyncio.to_thread(
-            lambda: list(self.infer_stream(model_name, payload, model_type=model_type))
+            lambda: list(
+                self.infer_stream(model_name, payload, model_type=model_type, params=params)
+            )
         )
         for chunk in chunks:
             yield chunk
