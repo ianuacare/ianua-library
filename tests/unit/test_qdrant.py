@@ -125,6 +125,43 @@ class TestUpsert:
         )
         fake.upsert.assert_called_once()
 
+    def test_chunks_upsert_over_byte_limit(self) -> None:
+        fake = MagicMock()
+        fake.get_collections.return_value = SimpleNamespace(
+            collections=[SimpleNamespace(name="docs")]
+        )
+        stub = _make_qmodels_stub()
+        points = [
+            {"id": f"p{i}", "vector": [0.1, 0.2], "payload": {"t": "x"}} for i in range(5)
+        ]
+        with (
+            patch.object(qdrant_module, "qmodels", stub),
+            patch.object(qdrant_module, "_MAX_UPSERT_BYTES", 200),
+        ):
+            db = QdrantDatabaseClient(client=fake)
+            out = db.upsert("docs", points)
+        # All points upserted, but split across multiple sub-limit requests.
+        assert out == {"ok": True, "collection": "docs", "upserted": 5}
+        assert fake.upsert.call_count >= 2
+
+
+class TestChunkPointsByBytes:
+    def test_groups_until_limit(self) -> None:
+        pts = [{"id": str(i), "vector": [0.0, 0.0], "payload": {}} for i in range(4)]
+        per = qdrant_module._estimate_point_bytes(pts[0])
+        batches = list(qdrant_module._chunk_points_by_bytes(pts, max_bytes=per * 2))
+        assert sum(len(b) for b in batches) == 4
+        assert all(len(b) <= 2 for b in batches)
+
+    def test_single_oversized_point_yields_alone(self) -> None:
+        pts = [{"id": "big", "vector": [0.0] * 10, "payload": {"x": "y" * 5000}}]
+        batches = list(qdrant_module._chunk_points_by_bytes(pts, max_bytes=100))
+        assert len(batches) == 1
+        assert len(batches[0]) == 1
+
+    def test_empty_yields_nothing(self) -> None:
+        assert list(qdrant_module._chunk_points_by_bytes([], max_bytes=100)) == []
+
 
 class TestSearch:
     def test_passes_filter_and_limit(self) -> None:

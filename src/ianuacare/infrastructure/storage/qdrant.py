@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import logging
+from collections.abc import Iterator
 from typing import Any
 
 try:  # Optional dependency
@@ -12,11 +15,52 @@ except Exception:  # pragma: no cover - import-time optional dependency handling
     qmodels = None  # type: ignore[assignment]
 
 
+_logger = logging.getLogger(__name__)
+
 _DISTANCE_MAP: dict[str, str] = {
     "Cosine": "Cosine",
     "Dot": "Dot",
     "Euclid": "Euclid",
 }
+
+# Qdrant rejects requests whose JSON body exceeds 32 MiB (33554432 bytes) with a
+# 400. Upserts are chunked to stay comfortably below that, leaving headroom for
+# JSON structural overhead the estimate below does not model exactly.
+_MAX_UPSERT_BYTES = 28 * 1024 * 1024
+
+
+def _estimate_point_bytes(point: dict[str, Any]) -> int:
+    """Rough serialized size of a point (vector + payload) in bytes."""
+    vector = point.get("vector") or []
+    n = len(vector) if isinstance(vector, (list, tuple)) else 0
+    size = n * 20  # each float serializes to ~20 chars of JSON at most
+    payload = point.get("payload") or {}
+    try:
+        size += len(json.dumps(payload, default=str, ensure_ascii=False).encode("utf-8"))
+    except (TypeError, ValueError):  # pragma: no cover - defensive
+        pass
+    return size + 96  # id + per-point JSON structural overhead
+
+
+def _chunk_points_by_bytes(
+    points: list[dict[str, Any]], max_bytes: int
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield batches of points whose estimated size stays under ``max_bytes``.
+
+    A single point larger than ``max_bytes`` is yielded on its own (it cannot be
+    split further at this layer).
+    """
+    batch: list[dict[str, Any]] = []
+    batch_bytes = 0
+    for point in points:
+        point_bytes = _estimate_point_bytes(point)
+        if batch and batch_bytes + point_bytes > max_bytes:
+            yield batch
+            batch, batch_bytes = [], 0
+        batch.append(point)
+        batch_bytes += point_bytes
+    if batch:
+        yield batch
 
 
 class QdrantDatabaseClient:
@@ -82,16 +126,30 @@ class QdrantDatabaseClient:
             vector_size=len(first_vector),
             distance="Cosine",
         )
-        qpoints = [
-            qmodels.PointStruct(
-                id=point["id"],
-                vector=[float(component) for component in point["vector"]],
-                payload=dict(point.get("payload") or {}),
-            )
-            for point in points
-        ]
-        self._client.upsert(collection_name=collection, points=qpoints)
-        return {"ok": True, "collection": collection, "upserted": len(qpoints)}
+        # Chunk the upsert so no single request exceeds Qdrant's 32 MiB body
+        # limit (long transcripts can otherwise produce a >40 MB payload → 400).
+        upserted = 0
+        for index, batch in enumerate(_chunk_points_by_bytes(points, _MAX_UPSERT_BYTES)):
+            qpoints = [
+                qmodels.PointStruct(
+                    id=point["id"],
+                    vector=[float(component) for component in point["vector"]],
+                    payload=dict(point.get("payload") or {}),
+                )
+                for point in batch
+            ]
+            try:
+                self._client.upsert(collection_name=collection, points=qpoints)
+            except Exception:
+                _logger.error(
+                    "qdrant upsert failed: collection=%s batch=%d points=%d",
+                    collection,
+                    index,
+                    len(qpoints),
+                )
+                raise
+            upserted += len(qpoints)
+        return {"ok": True, "collection": collection, "upserted": upserted}
 
     def search(
         self,
