@@ -6,8 +6,8 @@ from typing import Any
 
 from ianuacare.ai._numeric import to_float
 from ianuacare.ai.models.inference.base import BaseAIModel
+from ianuacare.ai.models.inference.campp_embedder import CamPlusPlusEmbedder
 from ianuacare.ai.models.inference.clusterer import SpeakerClusterer
-from ianuacare.ai.models.inference.embedder import SpeakerEmbedder
 from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.parsers.pause import PauseParser
 from ianuacare.ai.parsers.segment_duration import (
@@ -45,7 +45,7 @@ class DiarizationModel(BaseAIModel):
         self,
         transcription: Transcription | None = None,
         pause_parser: PauseParser | None = None,
-        embedder: SpeakerEmbedder | None = None,
+        embedder: BaseAIModel | None = None,
         clusterer: SpeakerClusterer | None = None,
         *,
         merge_transcript_gaps: bool = False,
@@ -57,7 +57,9 @@ class DiarizationModel(BaseAIModel):
     ) -> None:
         self._transcription = transcription
         self._pause_parser = pause_parser or PauseParser(merge_gaps=merge_transcript_gaps)
-        self._embedder = embedder or SpeakerEmbedder()
+        # Default to the neural CAM++ embedder (MFCC SpeakerEmbedder remains
+        # available for callers that inject it explicitly).
+        self._embedder: BaseAIModel = embedder or CamPlusPlusEmbedder()
         self._clusterer = clusterer or SpeakerClusterer()
         self._merge_transcript_gaps = merge_transcript_gaps
         self._max_segment_seconds = max_segment_seconds
@@ -116,9 +118,9 @@ class DiarizationModel(BaseAIModel):
         vectors: list[list[float]] = []
         if isinstance(embedded, list) and embedded:
             if isinstance(embedded[0], list):
-                vectors = embedded
+                vectors = [list(vector) for vector in embedded]
             elif isinstance(embedded[0], int | float):
-                vectors = [embedded]
+                vectors = [[float(component) for component in embedded]]
 
         cluster_payload: dict[str, Any] = {"vectors": vectors}
         if "num_speakers" in payload:
