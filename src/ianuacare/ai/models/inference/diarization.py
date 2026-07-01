@@ -12,7 +12,9 @@ from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.parsers.pause import PauseParser
 from ianuacare.ai.parsers.segment_duration import (
     DEFAULT_MAX_SEGMENT_SECONDS,
+    DEFAULT_MIN_EMBEDDING_SECONDS,
     merge_labeled_chunks,
+    merge_short_chunks,
     split_by_max_duration,
     split_by_spectral_boundaries,
 )
@@ -54,6 +56,7 @@ class DiarizationModel(BaseAIModel):
         spectral_hop_seconds: float = _DEFAULT_HOP_SECONDS,
         spectral_threshold: float = _DEFAULT_THRESHOLD,
         spectral_min_gap_seconds: float = _DEFAULT_MIN_GAP_SECONDS,
+        min_embedding_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
     ) -> None:
         self._transcription = transcription
         self._pause_parser = pause_parser or PauseParser(merge_gaps=merge_transcript_gaps)
@@ -67,6 +70,7 @@ class DiarizationModel(BaseAIModel):
         self._spectral_hop_seconds = spectral_hop_seconds
         self._spectral_threshold = spectral_threshold
         self._spectral_min_gap_seconds = spectral_min_gap_seconds
+        self._min_embedding_seconds = min_embedding_seconds
 
     def run(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
@@ -95,6 +99,13 @@ class DiarizationModel(BaseAIModel):
                 normalized,
                 max_duration_seconds=max_segment_seconds,
             )
+
+        # Consolidate micro-turns so each window carries enough speech for a
+        # stable neural (CAM++) embedding.
+        embedding_segments = merge_short_chunks(
+            embedding_segments,
+            min_seconds=self._resolve_min_embedding_seconds(payload),
+        )
 
         audio_path = payload.get("audio_path")
         if not isinstance(audio_path, str) or not audio_path.strip():
@@ -190,6 +201,13 @@ class DiarizationModel(BaseAIModel):
         if "max_segment_seconds" in payload:
             return max(0.0, to_float(payload.get("max_segment_seconds"), self._max_segment_seconds))
         return self._max_segment_seconds
+
+    def _resolve_min_embedding_seconds(self, payload: dict[str, Any]) -> float:
+        if "min_embedding_seconds" in payload:
+            return max(
+                0.0, to_float(payload.get("min_embedding_seconds"), self._min_embedding_seconds)
+            )
+        return self._min_embedding_seconds
 
     def _run_transcription(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self._transcription is None:

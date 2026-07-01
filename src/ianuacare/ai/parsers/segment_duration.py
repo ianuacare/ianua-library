@@ -18,6 +18,60 @@ DEFAULT_MAX_SEGMENT_SECONDS = 30.0
 _MIN_CHUNK_SECONDS = 0.05
 _LABEL_GAP_TOLERANCE_SECONDS = 0.05
 
+# Neural speaker embedders (e.g. CAM++) need enough speech per window to produce
+# a stable embedding; below ~1s the vector is noisy and hurts clustering.
+DEFAULT_MIN_EMBEDDING_SECONDS = 1.0
+
+
+def merge_short_chunks(
+    segments: list[dict[str, Any]],
+    *,
+    min_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
+) -> list[dict[str, Any]]:
+    """Consolidate adjacent chunks so each spans at least ``min_seconds``.
+
+    Applied before speaker embedding: a chunk shorter than ``min_seconds`` is
+    absorbed into the following one (times extended, text concatenated). A
+    trailing too-short chunk is merged back into the previous kept chunk. When
+    the total audio is shorter than ``min_seconds`` a single chunk is returned.
+
+    The original list is not modified.
+    """
+    if min_seconds <= 0 or len(segments) <= 1:
+        return [dict(segment) for segment in segments]
+
+    def _duration(chunk: dict[str, Any]) -> float:
+        return to_float(chunk.get("end"), 0.0) - to_float(chunk.get("start"), 0.0)
+
+    def _absorb(target: dict[str, Any], other: dict[str, Any]) -> None:
+        target["end"] = max(to_float(target.get("end"), 0.0), to_float(other.get("end"), 0.0))
+        pieces = (str(target.get("text", "")).strip(), str(other.get("text", "")).strip())
+        target["text"] = " ".join(piece for piece in pieces if piece).strip()
+
+    merged: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for segment in segments:
+        candidate = {
+            "start": to_float(segment.get("start"), 0.0),
+            "end": to_float(segment.get("end"), to_float(segment.get("start"), 0.0)),
+            "text": str(segment.get("text", "")).strip(),
+        }
+        if current is None:
+            current = candidate
+            continue
+        if _duration(current) < min_seconds:
+            _absorb(current, candidate)
+            continue
+        merged.append(current)
+        current = candidate
+
+    if current is not None:
+        if _duration(current) < min_seconds and merged:
+            _absorb(merged[-1], current)
+        else:
+            merged.append(current)
+    return merged
+
 
 def split_by_max_duration(
     segments: list[dict[str, Any]],
