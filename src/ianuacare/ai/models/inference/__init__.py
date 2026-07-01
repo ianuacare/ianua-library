@@ -1,5 +1,6 @@
 """Inference model hierarchy."""
 
+from ianuacare.ai.models.inference.campp_embedder import CamPlusPlusEmbedder
 from ianuacare.ai.models.inference.LLM import LLMModel
 from ianuacare.ai.models.inference.audio_emotion import AudioEmotionModel
 from ianuacare.ai.models.inference.base import BaseAIModel
@@ -15,6 +16,7 @@ from ianuacare.ai.models.inference.transcription import Transcription
 __all__ = [
     "AudioEmotionModel",
     "BaseAIModel",
+    "CamPlusPlusEmbedder",
     "DiarizationModel",
     "LabelClusterer",
     "LLMModel",

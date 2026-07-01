@@ -3,6 +3,7 @@
 from ianuacare.ai.models.inference import (
     AudioEmotionModel,
     BaseAIModel,
+    CamPlusPlusEmbedder,
     DiarizationModel,
     LLMModel,
     NLPModel,
@@ -21,6 +22,7 @@ __all__ = [
     "ModelOutNormalizer",
     "NLPModel",
     "SpeakerClusterer",
+    "CamPlusPlusEmbedder",
     "SpeakerEmbedder",
     "TextEmbedder",
     "Transcription",

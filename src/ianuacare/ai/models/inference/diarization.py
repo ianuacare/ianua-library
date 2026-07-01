@@ -6,13 +6,15 @@ from typing import Any
 
 from ianuacare.ai._numeric import to_float
 from ianuacare.ai.models.inference.base import BaseAIModel
+from ianuacare.ai.models.inference.campp_embedder import CamPlusPlusEmbedder
 from ianuacare.ai.models.inference.clusterer import SpeakerClusterer
-from ianuacare.ai.models.inference.embedder import SpeakerEmbedder
 from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.parsers.pause import PauseParser
 from ianuacare.ai.parsers.segment_duration import (
     DEFAULT_MAX_SEGMENT_SECONDS,
+    DEFAULT_MIN_EMBEDDING_SECONDS,
     merge_labeled_chunks,
+    merge_short_chunks,
     split_by_max_duration,
     split_by_spectral_boundaries,
 )
@@ -45,7 +47,7 @@ class DiarizationModel(BaseAIModel):
         self,
         transcription: Transcription | None = None,
         pause_parser: PauseParser | None = None,
-        embedder: SpeakerEmbedder | None = None,
+        embedder: BaseAIModel | None = None,
         clusterer: SpeakerClusterer | None = None,
         *,
         merge_transcript_gaps: bool = False,
@@ -54,10 +56,13 @@ class DiarizationModel(BaseAIModel):
         spectral_hop_seconds: float = _DEFAULT_HOP_SECONDS,
         spectral_threshold: float = _DEFAULT_THRESHOLD,
         spectral_min_gap_seconds: float = _DEFAULT_MIN_GAP_SECONDS,
+        min_embedding_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
     ) -> None:
         self._transcription = transcription
         self._pause_parser = pause_parser or PauseParser(merge_gaps=merge_transcript_gaps)
-        self._embedder = embedder or SpeakerEmbedder()
+        # Default to the neural CAM++ embedder (MFCC SpeakerEmbedder remains
+        # available for callers that inject it explicitly).
+        self._embedder: BaseAIModel = embedder or CamPlusPlusEmbedder()
         self._clusterer = clusterer or SpeakerClusterer()
         self._merge_transcript_gaps = merge_transcript_gaps
         self._max_segment_seconds = max_segment_seconds
@@ -65,6 +70,7 @@ class DiarizationModel(BaseAIModel):
         self._spectral_hop_seconds = spectral_hop_seconds
         self._spectral_threshold = spectral_threshold
         self._spectral_min_gap_seconds = spectral_min_gap_seconds
+        self._min_embedding_seconds = min_embedding_seconds
 
     def run(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
@@ -94,6 +100,13 @@ class DiarizationModel(BaseAIModel):
                 max_duration_seconds=max_segment_seconds,
             )
 
+        # Consolidate micro-turns so each window carries enough speech for a
+        # stable neural (CAM++) embedding.
+        embedding_segments = merge_short_chunks(
+            embedding_segments,
+            min_seconds=self._resolve_min_embedding_seconds(payload),
+        )
+
         audio_path = payload.get("audio_path")
         if not isinstance(audio_path, str) or not audio_path.strip():
             return {
@@ -116,9 +129,9 @@ class DiarizationModel(BaseAIModel):
         vectors: list[list[float]] = []
         if isinstance(embedded, list) and embedded:
             if isinstance(embedded[0], list):
-                vectors = embedded
+                vectors = [list(vector) for vector in embedded]
             elif isinstance(embedded[0], int | float):
-                vectors = [embedded]
+                vectors = [[float(component) for component in embedded]]
 
         cluster_payload: dict[str, Any] = {"vectors": vectors}
         if "num_speakers" in payload:
@@ -188,6 +201,13 @@ class DiarizationModel(BaseAIModel):
         if "max_segment_seconds" in payload:
             return max(0.0, to_float(payload.get("max_segment_seconds"), self._max_segment_seconds))
         return self._max_segment_seconds
+
+    def _resolve_min_embedding_seconds(self, payload: dict[str, Any]) -> float:
+        if "min_embedding_seconds" in payload:
+            return max(
+                0.0, to_float(payload.get("min_embedding_seconds"), self._min_embedding_seconds)
+            )
+        return self._min_embedding_seconds
 
     def _run_transcription(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self._transcription is None:

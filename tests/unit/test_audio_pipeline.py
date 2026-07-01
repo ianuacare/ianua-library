@@ -66,6 +66,9 @@ def test_diarization_model_returns_segments() -> None:
         pause_parser=PauseParser(silence_gap_seconds=0.1),
         embedder=_StubSpeakerEmbedder(),
         clusterer=SpeakerClusterer(),
+        # Disable min-embedding merge: this test exercises the two-speaker path
+        # on sub-second clips that would otherwise be consolidated.
+        min_embedding_seconds=0.0,
     ).run({"audio_path": "/tmp/audio.wav", "num_speakers": 2})
     assert out["raw_transcription"] == "hello world"
     assert len(out["segments"]) == 2
