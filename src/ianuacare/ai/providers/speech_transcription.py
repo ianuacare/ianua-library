@@ -52,9 +52,14 @@ class SpeechTranscriptionProvider(AIProvider):
         return max(1000, byte_budget // 2)
 
     def infer(
-        self, model_name: str, payload: Any, *, model_type: str | None = None
+        self,
+        model_name: str,
+        payload: Any,
+        *,
+        model_type: str | None = None,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        _ = model_type
+        _ = (model_type, params)
         if self._client is None:
             return {"text": "", "segments": []}
         if not isinstance(payload, dict):

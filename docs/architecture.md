@@ -59,7 +59,7 @@ flowchart LR
 | Layer | Responsibility | Main modules |
 |-------|----------------|--------------|
 | **Core** | Domain models, business flow, errors, auth, orchestration, pipeline logic, optional RAG chat orchestration. | `ianuacare.core.models`, `ianuacare.core.pipeline`, `ianuacare.core.orchestration`, `ianuacare.core.chatbot`, `ianuacare.core.auth`, `ianuacare.core.audit`, `ianuacare.core.config`, `ianuacare.core.logging`, `ianuacare.core.exceptions` |
-| **AI** | Unified model/provider/normalizer hierarchy and speech pipeline. | `ianuacare.ai.models`, `ianuacare.ai.models.inference`, `ianuacare.ai.models.normalizer`, `ianuacare.ai.providers`, `ianuacare.ai.parsers` |
+| **AI** | Unified model/provider/normalizer hierarchy and speech pipeline. `LLMModel` forwards construction-time generation `params` to `AIProvider.infer`. | `ianuacare.ai.models`, `ianuacare.ai.models.inference`, `ianuacare.ai.models.normalizer`, `ianuacare.ai.providers`, `ianuacare.ai.parsers` |
 | **Infrastructure** | External adapters and persistence implementations. | `ianuacare.infrastructure.storage`, `ianuacare.infrastructure.auth`, `ianuacare.infrastructure.cache`, `ianuacare.infrastructure.encryption` |
 
 ## Package structure

@@ -55,8 +55,9 @@ def test_parse_text_embedder_default_sentences_only() -> None:
     InputDataParser().parse(p, model_key="text_embedder")
     assert p.parsed_data == {
         "id_artefatto_trascrizione": "tr-1",
-        "text": "Prima frase. Seconda frase!",
-        "sentences": ["Prima frase.", "Seconda frase!"],
+        "text": "Prima frase Seconda frase",
+        "chunks": ["Prima frase Seconda frase"],
+        "sentences": ["Prima frase Seconda frase"],
         "words": [],
     }
 
@@ -74,6 +75,7 @@ def test_parse_text_embedder_with_words() -> None:
     assert p.parsed_data == {
         "id_artefatto_trascrizione": "tr-2",
         "text": "ciao mondo",
+        "chunks": ["ciao mondo"],
         "sentences": [],
         "words": ["ciao", "mondo"],
     }
@@ -92,6 +94,19 @@ def test_parse_text_embedder_lowercase_flag() -> None:
     assert p.parsed_data["text"] == "ciao mondo"
 
 
+def test_parse_text_embedder_remove_stopwords_flag() -> None:
+    p = DataPacket(
+        validated_data={
+            "id_artefatto_trascrizione": "tr-4",
+            "text": "Il paziente ha un dolore al braccio",
+            "split_sentences": False,
+            "remove_stopwords": True,
+        }
+    )
+    InputDataParser().parse(p, model_key="text_embedder")
+    assert p.parsed_data["text"] == "paziente ha dolore braccio"
+
+
 def test_parse_text_embedder_requires_id() -> None:
     p = DataPacket(validated_data={"text": "ciao"})
     with pytest.raises(ValidationError):
@@ -108,3 +123,21 @@ def test_parse_text_embedder_rejects_non_mapping() -> None:
     p = DataPacket(validated_data="plain text")
     with pytest.raises(ValidationError):
         InputDataParser().parse(p, model_key="text_embedder")
+
+
+def test_parse_text_embedder_chunks_long_text() -> None:
+    p = DataPacket(
+        validated_data={
+            "id_artefatto_trascrizione": "tr-long",
+            "text": "uno due tre quattro cinque sei.",
+            "split_sentences": False,
+        }
+    )
+    InputDataParser(max_tokens=3).parse(p, model_key="text_embedder")
+    assert len(p.parsed_data["chunks"]) > 1
+    assert p.parsed_data["text"] == "uno due tre quattro cinque sei"
+
+
+def test_parse_text_embedder_rejects_invalid_max_tokens() -> None:
+    with pytest.raises(ValidationError):
+        InputDataParser(max_tokens=0)

@@ -14,7 +14,7 @@ from ianuacare.core.chatbot.chatbot import ConversationState
 
 | Concern | Implementation |
 |---------|----------------|
-| Retrieval | `Reader.read_vector_search` (`filters.level` required: `text`, `sentence`, or `words`) |
+| Retrieval | `Reader.read_vector_search` (`filters.level` required: `text`, `chunks`, `sentence`, or `words`) |
 | Ranking across turns | Merge **new hits** with `ConversationState.retrieved_pool`, dedupe by point `id`, apply **score decay** on older-only hits, keep top `rerank_top_k` |
 | Conversation | `ConversationState.context` as `list[Message]` (`user` / `assistant` / optional `system`), optional rolling `summary` when character budget is exceeded |
 | Latency / resilience | Retries with exponential backoff on retrieval and LLM (`ValidationError` is **not** retried) |
@@ -61,14 +61,16 @@ flowchart TD
 
 ## LLM payload shape
 
-Each turn builds a dict (passed to `LLMModel.run` / `arun` / streaming):
+Each turn builds an OpenAI-style **messages list** (passed to `LLMModel.run` / `arun` / streaming):
 
-- `summary`: rolling text after compression
-- `history`: `[{"role", "content"}, ...]` from `ConversationState.context`
-- `retrieved`: list of **source strings** from reranked `RetrievedPoint`s
-- `query`: current user text
+- Prior turns from `ConversationState.context` (`user` / `assistant` / optional `system`)
+- A final `user` message with optional `[CONTEXT SUMMARY]`, `[RETRIEVED CONTEXT]`, and the current query
 
-Extend your provider / prompts in the application layer if you need a fixed system instruction beyond `system_prompt`.
+Extend prompts in the application layer via `system_prompt` or by pre-seeding `ConversationState.context`.
+
+### Generation parameters
+
+Sampling, reasoning, and `response_format` are **not** set per chat turn. Configure them when constructing the injected `LLMModel` (for example `temperature=0.4`, `reasoning_effort="medium"`). The same params apply to summary compression calls inside the chatbot. See [LLM generation parameters](llm-generation-params.md).
 
 ## Streaming and async defaults
 
@@ -83,3 +85,4 @@ Extend your provider / prompts in the application layer if you need a fixed syst
 - [API reference — Chatbot](api-reference.md#chatbot-ianuacarecorechatbot)
 - [Storage — Reader / Writer](api-reference.md#storage)
 - [AI — LLMModel / AIProvider](api-reference.md#ai)
+- [LLM generation parameters](llm-generation-params.md)

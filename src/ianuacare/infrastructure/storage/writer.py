@@ -23,6 +23,7 @@ def _utc_now_iso() -> str:
 
 _VECTOR_FIELD_MAP: dict[str, tuple[str, str]] = {
     "text": ("text", "text_vect"),
+    "chunks": ("chunks", "chunks_vect"),
     "sentence": ("sentence", "sentence_vect"),
     "words": ("words", "words_vect"),
 }
@@ -381,8 +382,9 @@ class Writer:
         """Upsert one point per element of ``vector_field`` across all artefacts.
 
         ``vector_field`` selects the level to persist: ``"text"`` produces
-        one point per artefact (``index=0``), ``"sentence"`` and ``"words"``
-        produce one point per list element. Each point has a stable id of
+        one point per artefact (``index=0``), while ``"chunks"``,
+        ``"sentence"`` and ``"words"`` produce one point per list element.
+        Each point has a stable id of
         the form ``{id_artefatto_trascrizione}:{level}:{index}`` and a
         payload with ``user_id``, ``product``, ``level``, ``index`` and
         ``source_text``.

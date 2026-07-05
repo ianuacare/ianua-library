@@ -88,6 +88,27 @@ class TestUpsert:
         hits = vector_db.search("clinical", vector=[1.0, 0.0], top_k=5)
         assert {hit["id"] for hit in hits} == {"a:text:0", "b:text:0"}
 
+    def test_chunks_level_writes_one_point_per_chunk(self, pipeline_fixture) -> None:
+        pipe, vector_db, ctx = pipeline_fixture
+        packet = pipe.run_vector(
+            "upsert",
+            {
+                "collection": "clinical",
+                "vector_field": "chunks",
+                "artefatti": [
+                    {
+                        "id_artefatto_trascrizione": "a",
+                        "chunks": ["diabete tipo 2", "controllo glicemia"],
+                        "chunks_vect": [[1.0, 0.0], [0.5, 0.5]],
+                    },
+                ],
+            },
+            ctx,
+        )
+        assert packet.processed_data["upserted"] == 2
+        hits = vector_db.search("clinical", vector=[1.0, 0.0], top_k=5)
+        assert {hit["id"] for hit in hits} == {"a:chunks:0", "a:chunks:1"}
+
     def test_invalid_vector_field_rejected(self, pipeline_fixture) -> None:
         pipe, _, ctx = pipeline_fixture
         with pytest.raises(ValidationError):

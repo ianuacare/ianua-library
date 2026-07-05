@@ -44,7 +44,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `PostgresDatabaseClient` (PostgreSQL)
 - `QdrantDatabaseClient` + `VectorDatabaseClient` (vector search)
 - `S3BucketClient` (AWS S3)
-- `TogetherAIProvider` (Together AI)
+- `TogetherAIProvider` (Together AI) — chat, embeddings; `LLMModel` supports construction-time generation params (`temperature`, `reasoning_effort`, `response_format`, …). See [docs/llm-generation-params.md](docs/llm-generation-params.md).
 - Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
 - Audio emotion (`AudioEmotionModel`, `RestHostedModelProvider`) — REST-hosted dimensional emotion (no extra dependency)
 - `RedisCacheClient` (Redis)

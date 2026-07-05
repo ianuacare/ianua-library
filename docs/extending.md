@@ -31,6 +31,12 @@ Use `SpeechTranscriptionProvider` for ASR, then plug it into `Transcription(prov
 
 `LLMModel` also uses the same provider + normalizer pattern (`infer` + normalize).
 
+### LLM generation parameters
+
+Generation knobs are set **once** on `LLMModel(..., temperature=..., top_p=..., reasoning_effort=..., response_format=..., extra=...)` and forwarded to `AIProvider.infer(..., params=...)`. Implement custom providers by reading `params` in `infer` and mapping to your backend SDK. `TogetherAIProvider` already maps the generic keys (including `reasoning_enabled` → `reasoning={"enabled": ...}`). `RestHostedModelProvider` merges `params` into the payload dict before `build_request`.
+
+Full reference: [LLM generation parameters](llm-generation-params.md).
+
 For embedding analytics, `LabelClusterer` and `RankedLabelClusterer` consume precomputed vectors and use `TextEmbedder` internally to build anchor prototypes for label mapping. Labels are not hardcoded in the library: pass your `label_clusters` mapping in the runtime payload. Register models in `Orchestrator` with dedicated keys (for example `"label_clusterer"` and `"ranked_label_clusterer"`).
 
 ## REST-hosted audio emotion

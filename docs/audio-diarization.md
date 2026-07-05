@@ -119,13 +119,42 @@ result = model.run({
 
 ## LLM text generation (summaries and similar)
 
-`LLMModel` passes payloads to the provider and normalizes output through `ModelOutNormalizer` (same `normalize_summary` path as before). When using `Pipeline` + default `InputDataParser`, register the model under `model_key` `"llm"` and supply `validated_data` with at least `text`; the input parser sets `prompt` to an empty string for the application layer to override if needed. To enforce an output contract, pass a JSON schema via `context.metadata["output_schema"]`: the `OutputDataParser` will check required fields and top-level property types before normalization.
+`LLMModel` passes payloads to the provider and normalizes output through `ModelOutNormalizer` (same `normalize_summary` path as before). When using `Pipeline` + default `InputDataParser`, register the model under `model_key` `"llm"` and supply `validated_data` with at least `text`; the input parser sets `prompt` to an empty string for the application layer to override if needed.
+
+### Generation parameters (construction-time)
+
+Set sampling, reasoning, and output-format knobs as keyword arguments when you construct `LLMModel`. Only non-`None` values are sent to the provider; `temperature` defaults to `0.7` and `top_p` to `1.0`. See [LLM generation parameters](llm-generation-params.md) for the full table and provider mapping.
+
+```python
+import os
+
+from ianuacare import LLMModel, ModelOutNormalizer, TogetherAIProvider
+
+provider = TogetherAIProvider(
+    api_key=os.environ["TOGETHER_API_KEY"],
+    default_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+)
+summary_model = LLMModel(
+    provider,
+    "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    ModelOutNormalizer(),
+    temperature=0.3,
+    max_tokens=1024,
+    response_format={"type": "json_object"},
+)
+```
+
+For tests or stubs, `CallableProvider` works the same way — generation params are forwarded but ignored unless your callable reads them.
+
+### Output validation (`output_schema`)
+
+To enforce an output contract **after** inference, pass a JSON schema via `context.metadata["output_schema"]`: the `OutputDataParser` will check required fields and top-level property types before normalization. This is separate from `response_format` on `LLMModel`, which steers the provider API. You can use both together.
 
 ```python
 from ianuacare import CallableProvider, ModelOutNormalizer, LLMModel
 
 provider = CallableProvider(lambda _m, _p: {"text": "- point A\n- point B"})
-summary = LLMModel(provider, "summarizer", ModelOutNormalizer()).run(
+summary = LLMModel(provider, "summarizer", ModelOutNormalizer(), temperature=0.3).run(
     {"prompt": "", "text": "Long transcript or notes to summarize."}
 )
 print(summary["text"])
