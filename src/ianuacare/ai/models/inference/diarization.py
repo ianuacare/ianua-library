@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+_LOG = logging.getLogger(__name__)
 
 from ianuacare.ai._numeric import to_float
 from ianuacare.ai.models.inference.base import BaseAIModel
@@ -153,6 +156,23 @@ class DiarizationModel(BaseAIModel):
             {"id": sid, "label": f"speaker_{sid + 1}", "segment_count": count}
             for sid, count in sorted(speaker_counts.items())
         ]
+
+        total_segments = len(diarized_segments)
+        if total_segments > 1 and speaker_counts:
+            dominant_count = max(speaker_counts.values())
+            dominant_ratio = dominant_count / total_segments
+            if dominant_ratio >= 0.9:
+                dominant_id = max(speaker_counts, key=lambda k: speaker_counts[k])
+                _LOG.warning(
+                    "diarization_collapse: %.0f%% of %d segments assigned to speaker_%d "
+                    "(num_speakers=%s). Embeddings may not be discriminative for this audio — "
+                    "consider a language-agnostic speaker embedding model.",
+                    dominant_ratio * 100,
+                    total_segments,
+                    dominant_id + 1,
+                    payload.get("num_speakers"),
+                )
+
         return {
             "raw_transcription": str(transcript.get("text", "")),
             "segments": diarized_segments,
