@@ -13,14 +13,14 @@ class ModelOutNormalizer:
 
     def normalize_transcript(self, raw: Any) -> dict[str, Any]:
         if isinstance(raw, str):
-            return {"text": raw.strip(), "segments": []}
+            return {"text": raw.strip(), "segments": [], "words": []}
         if not isinstance(raw, dict):
-            return {"text": str(raw), "segments": []}
+            return {"text": str(raw), "segments": [], "words": []}
 
         text = str(raw.get("text") or "").strip()
         segments_raw = raw.get("segments")
         if not isinstance(segments_raw, list):
-            return {"text": text, "segments": []}
+            return {"text": text, "segments": [], "words": []}
 
         segments: list[dict[str, Any]] = []
         for segment in segments_raw:
@@ -36,7 +36,25 @@ class ModelOutNormalizer:
                     "text": str(segment.get("text", "")).strip(),
                 }
             )
-        return {"text": text, "segments": segments}
+
+        words: list[dict[str, Any]] = []
+        words_raw = raw.get("words")
+        if isinstance(words_raw, list):
+            for word in words_raw:
+                if not isinstance(word, dict):
+                    continue
+                w_start = to_float(word.get("start"), 0.0)
+                w_end_raw = word.get("end")
+                w_end = to_float(w_end_raw if w_end_raw is not None else word.get("start"), w_start)
+                words.append(
+                    {
+                        "start": w_start,
+                        "end": w_end,
+                        "text": str(word.get("text", "")).strip(),
+                    }
+                )
+
+        return {"text": text, "segments": segments, "words": words}
 
     def normalize_summary(self, raw: Any) -> dict[str, Any]:
         if isinstance(raw, str):

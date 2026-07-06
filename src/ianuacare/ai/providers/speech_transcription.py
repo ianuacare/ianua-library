@@ -61,7 +61,7 @@ class SpeechTranscriptionProvider(AIProvider):
     ) -> dict[str, Any]:
         _ = (model_type, params)
         if self._client is None:
-            return {"text": "", "segments": []}
+            return {"text": "", "segments": [], "words": []}
         if not isinstance(payload, dict):
             raise ValueError("speech transcription payload must be a mapping")
 
@@ -74,6 +74,7 @@ class SpeechTranscriptionProvider(AIProvider):
         language = payload.get("language")
         response_format = str(payload.get("response_format") or "verbose_json")
         selected_model = model_name or self._model
+        use_word_timestamps = bool(payload.get("word_timestamps", False))
 
         try:
             size = os.path.getsize(audio_path)
@@ -87,6 +88,7 @@ class SpeechTranscriptionProvider(AIProvider):
                     f,
                     language=language if isinstance(language, str) else None,
                     response_format=response_format,
+                    use_word_timestamps=use_word_timestamps,
                 )
 
         return self._transcribe_chunked(
@@ -94,6 +96,7 @@ class SpeechTranscriptionProvider(AIProvider):
             audio_path,
             language=language if isinstance(language, str) else None,
             response_format=response_format,
+            use_word_timestamps=use_word_timestamps,
         )
 
     def _transcribe_file_handle(
@@ -103,14 +106,18 @@ class SpeechTranscriptionProvider(AIProvider):
         *,
         language: str | None,
         response_format: str,
+        use_word_timestamps: bool = False,
     ) -> dict[str, Any]:
         assert self._client is not None
-        resp = self._client.audio.transcriptions.create(
-            model=model_name,
-            file=file_handle,
-            language=language,
-            response_format=response_format,
-        )
+        kwargs: dict[str, Any] = {
+            "model": model_name,
+            "file": file_handle,
+            "language": language,
+            "response_format": response_format,
+        }
+        if use_word_timestamps:
+            kwargs["timestamp_granularities"] = ["word", "segment"]
+        resp = self._client.audio.transcriptions.create(**kwargs)
         raw_segments = getattr(resp, "segments", None) or []
         segments = []
         for seg in raw_segments:
@@ -123,9 +130,23 @@ class SpeechTranscriptionProvider(AIProvider):
                     "text": str(getattr(seg, "text", "")).strip(),
                 }
             )
+        words: list[dict[str, Any]] = []
+        if use_word_timestamps:
+            raw_words = getattr(resp, "words", None) or []
+            for w in raw_words:
+                w_start = to_float(getattr(w, "start", 0.0), 0.0)
+                w_end = to_float(getattr(w, "end", None), w_start)
+                words.append(
+                    {
+                        "start": w_start,
+                        "end": w_end,
+                        "text": str(getattr(w, "word", "")).strip(),
+                    }
+                )
         return {
             "text": str(getattr(resp, "text", "")).strip(),
             "segments": segments,
+            "words": words,
         }
 
     def _transcribe_chunked(
@@ -135,6 +156,7 @@ class SpeechTranscriptionProvider(AIProvider):
         *,
         language: str | None,
         response_format: str,
+        use_word_timestamps: bool = False,
     ) -> dict[str, Any]:
         import librosa
         import soundfile as sf
@@ -148,6 +170,7 @@ class SpeechTranscriptionProvider(AIProvider):
         max_samples = self._max_samples_per_wav_chunk()
         text_parts: list[str] = []
         merged_segments: list[dict[str, Any]] = []
+        merged_words: list[dict[str, Any]] = []
 
         with tempfile.TemporaryDirectory(prefix="ianuacare-whisper-") as tmp_dir:
             start = 0
@@ -163,6 +186,7 @@ class SpeechTranscriptionProvider(AIProvider):
                         f,
                         language=language,
                         response_format=response_format,
+                        use_word_timestamps=use_word_timestamps,
                     )
                 text_parts.append(str(part.get("text", "")).strip())
                 for segment in part.get("segments", []):
@@ -177,9 +201,22 @@ class SpeechTranscriptionProvider(AIProvider):
                             "text": str(segment.get("text", "")).strip(),
                         }
                     )
+                for word in part.get("words", []):
+                    if not isinstance(word, dict):
+                        continue
+                    w_start = to_float(word.get("start"), 0.0)
+                    w_end = to_float(word.get("end"), w_start)
+                    merged_words.append(
+                        {
+                            "start": chunk_offset_seconds + w_start,
+                            "end": chunk_offset_seconds + w_end,
+                            "text": str(word.get("text", "")).strip(),
+                        }
+                    )
                 start = end
 
         return {
             "text": " ".join(piece for piece in text_parts if piece).strip(),
             "segments": merged_segments,
+            "words": merged_words,
         }
