@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-from ianuacare.ai.text import DEFAULT_MAX_TOKENS, chunk_text, clean_text, split_sentences, split_words
+from ianuacare.ai.text import DEFAULT_MAX_TOKENS, chunk_text, clean_text, count_tokens, split_sentences, split_words
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.packet import DataPacket
 
@@ -102,7 +102,18 @@ class InputDataParser:
             lowercase=lowercase,
             remove_stopwords=remove_stopwords,
         )
-        sentences = split_sentences(cleaned) if split_sentences_flag else []
+        raw_sentences = split_sentences(cleaned) if split_sentences_flag else []
+        # A single sentence produced by split_sentences may exceed the
+        # embedding model's context limit (e.g. a long therapist monologue).
+        # Re-chunk any oversized sentence so every item in the batch fits.
+        sentences: list[str] = []
+        for sentence in raw_sentences:
+            if count_tokens(sentence, self._tokenizer) > self._max_tokens:
+                sentences.extend(
+                    chunk_text(sentence, max_tokens=self._max_tokens, tokenizer=self._tokenizer)
+                )
+            else:
+                sentences.append(sentence)
         words = split_words(cleaned) if split_words_flag else []
         chunks = chunk_text(
             cleaned,
