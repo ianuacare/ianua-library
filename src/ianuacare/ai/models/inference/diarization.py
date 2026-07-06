@@ -79,7 +79,13 @@ class DiarizationModel(BaseAIModel):
         if not isinstance(payload, dict):
             return {"raw_transcription": "", "segments": [], "speakers": []}
 
-        transcript = self._run_transcription(payload)
+        use_word_ts = bool(payload.get("word_timestamps", False))
+        # Inject word_timestamps flag into transcription payload so the provider
+        # requests timestamp_granularities=["word","segment"] from Whisper.
+        transcription_payload = dict(payload)
+        transcription_payload["word_timestamps"] = use_word_ts
+
+        transcript = self._run_transcription(transcription_payload)
         segments = transcript.get("segments", [])
         if not isinstance(segments, list):
             segments = []
@@ -87,6 +93,22 @@ class DiarizationModel(BaseAIModel):
         merge_gaps = self._resolve_merge_gaps(payload)
         max_segment_seconds = self._resolve_max_segment_seconds(payload)
         normalized = self._pause_parser.parse(segments, merge_gaps=merge_gaps)
+
+        # When word-level timestamps are available, use individual words as
+        # fine-grained embedding windows instead of full ASR segments.
+        # Each word becomes its own chunk; merge_short_chunks then consolidates
+        # them to the minimum duration needed for a stable CAM++ embedding.
+        words = transcript.get("words") if use_word_ts else None
+        if words and isinstance(words, list) and len(words) > 1:
+            normalized = [
+                {
+                    "start": to_float(w.get("start"), 0.0),
+                    "end": to_float(w.get("end"), to_float(w.get("start"), 0.0)),
+                    "text": str(w.get("text", "")).strip(),
+                }
+                for w in words
+                if isinstance(w, dict)
+            ]
 
         use_spectral = bool(payload.get("use_spectral_split", self._use_spectral_split))
 
