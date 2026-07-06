@@ -99,6 +99,12 @@ class DiarizationModel(BaseAIModel):
         # Each word becomes its own chunk; merge_short_chunks then consolidates
         # them to the minimum duration needed for a stable CAM++ embedding.
         words = transcript.get("words") if use_word_ts else None
+        if use_word_ts and not words:
+            _LOG.warning(
+                "word_timestamps requested but transcript has no words; "
+                "falling back to ASR segment windows (provider=%s)",
+                type(self._transcription).__name__,
+            )
         if words and isinstance(words, list) and len(words) > 1:
             normalized = [
                 {
