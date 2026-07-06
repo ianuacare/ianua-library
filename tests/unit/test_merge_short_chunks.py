@@ -62,3 +62,40 @@ def test_min_zero_is_noop_copy() -> None:
 
 def test_default_min_is_one_second() -> None:
     assert DEFAULT_MIN_EMBEDDING_SECONDS == 1.0
+
+
+def test_gap_break_prevents_merge_across_pause() -> None:
+    """ianua-library#16: a pause > max_gap_seconds marks a speaker turn."""
+    chunks = [
+        {"start": 0.0, "end": 0.5, "text": "ciao"},
+        {"start": 0.6, "end": 0.9, "text": "anna"},
+        # 0.78s pause: likely turn change — never absorb across it
+        {"start": 1.68, "end": 2.4, "text": "ciao"},
+        {"start": 2.4, "end": 3.1, "text": "francesca"},
+    ]
+    out = merge_short_chunks(chunks, min_seconds=1.0, max_gap_seconds=0.5)
+    assert len(out) == 2
+    assert out[0]["text"] == "ciao anna"
+    assert out[1]["text"] == "ciao francesca"
+    # first window stays < min_seconds rather than straddling the pause
+    assert _dur(out[0]) < 1.0
+
+
+def test_gap_break_none_keeps_legacy_behavior() -> None:
+    chunks = [
+        {"start": 0.0, "end": 0.5, "text": "a"},
+        {"start": 1.5, "end": 2.0, "text": "b"},
+    ]
+    out = merge_short_chunks(chunks, min_seconds=1.0, max_gap_seconds=None)
+    assert len(out) == 1
+    assert out[0]["text"] == "a b"
+
+
+def test_trailing_short_chunk_not_absorbed_across_gap() -> None:
+    chunks = [
+        {"start": 0.0, "end": 1.5, "text": "long"},
+        {"start": 2.5, "end": 2.9, "text": "tail"},
+    ]
+    out = merge_short_chunks(chunks, min_seconds=1.0, max_gap_seconds=0.5)
+    assert len(out) == 2
+    assert out[1]["text"] == "tail"

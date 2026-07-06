@@ -15,6 +15,7 @@ from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.parsers.pause import PauseParser
 from ianuacare.ai.parsers.segment_duration import (
     DEFAULT_MAX_SEGMENT_SECONDS,
+    DEFAULT_MERGE_MAX_GAP_SECONDS,
     DEFAULT_MIN_EMBEDDING_SECONDS,
     merge_labeled_chunks,
     merge_short_chunks,
@@ -60,6 +61,7 @@ class DiarizationModel(BaseAIModel):
         spectral_threshold: float = _DEFAULT_THRESHOLD,
         spectral_min_gap_seconds: float = _DEFAULT_MIN_GAP_SECONDS,
         min_embedding_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
+        merge_max_gap_seconds: float | None = DEFAULT_MERGE_MAX_GAP_SECONDS,
     ) -> None:
         self._transcription = transcription
         self._pause_parser = pause_parser or PauseParser(merge_gaps=merge_transcript_gaps)
@@ -74,6 +76,7 @@ class DiarizationModel(BaseAIModel):
         self._spectral_threshold = spectral_threshold
         self._spectral_min_gap_seconds = spectral_min_gap_seconds
         self._min_embedding_seconds = min_embedding_seconds
+        self._merge_max_gap_seconds = merge_max_gap_seconds
 
     def run(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
@@ -99,6 +102,12 @@ class DiarizationModel(BaseAIModel):
         # Each word becomes its own chunk; merge_short_chunks then consolidates
         # them to the minimum duration needed for a stable CAM++ embedding.
         words = transcript.get("words") if use_word_ts else None
+        if use_word_ts and not words:
+            _LOG.warning(
+                "word_timestamps requested but transcript has no words; "
+                "falling back to ASR segment windows (provider=%s)",
+                type(self._transcription).__name__,
+            )
         if words and isinstance(words, list) and len(words) > 1:
             normalized = [
                 {
@@ -126,10 +135,13 @@ class DiarizationModel(BaseAIModel):
             )
 
         # Consolidate micro-turns so each window carries enough speech for a
-        # stable neural (CAM++) embedding.
+        # stable neural (CAM++) embedding. Never merge across a silence gap:
+        # a pause is strong evidence of a speaker turn, and windows straddling
+        # two speakers produce mixed embeddings that collapse clustering.
         embedding_segments = merge_short_chunks(
             embedding_segments,
             min_seconds=self._resolve_min_embedding_seconds(payload),
+            max_gap_seconds=self._resolve_merge_max_gap_seconds(payload),
         )
 
         audio_path = payload.get("audio_path")
@@ -243,6 +255,15 @@ class DiarizationModel(BaseAIModel):
         if "max_segment_seconds" in payload:
             return max(0.0, to_float(payload.get("max_segment_seconds"), self._max_segment_seconds))
         return self._max_segment_seconds
+
+    def _resolve_merge_max_gap_seconds(self, payload: dict[str, Any]) -> float | None:
+        if "merge_max_gap_seconds" in payload:
+            raw = payload.get("merge_max_gap_seconds")
+            if raw is None:
+                return None
+            value = to_float(raw, -1.0)
+            return value if value >= 0.0 else self._merge_max_gap_seconds
+        return self._merge_max_gap_seconds
 
     def _resolve_min_embedding_seconds(self, payload: dict[str, Any]) -> float:
         if "min_embedding_seconds" in payload:

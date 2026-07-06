@@ -45,6 +45,23 @@ def test_parse_diarization_segments_default_to_empty_list() -> None:
     assert p.parsed_data == {"segments": []}
 
 
+def test_parse_diarization_preserves_word_timestamp_fields() -> None:
+    """Regression ianua-library#15: word_timestamps was silently dropped by the whitelist."""
+    p = DataPacket(
+        validated_data={
+            "audio_path": "/tmp/a.mp3",
+            "word_timestamps": True,
+            "min_embedding_seconds": 1.0,
+            "merge_max_gap_seconds": 0.5,
+            "num_speakers": 2,
+        }
+    )
+    InputDataParser().parse(p, model_key="diarization")
+    assert p.parsed_data["word_timestamps"] is True
+    assert p.parsed_data["min_embedding_seconds"] == 1.0
+    assert p.parsed_data["merge_max_gap_seconds"] == 0.5
+
+
 def test_parse_text_embedder_default_sentences_only() -> None:
     p = DataPacket(
         validated_data={

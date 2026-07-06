@@ -71,6 +71,9 @@ class InputDataParser:
                 "spectral_threshold",
                 "spectral_hop_seconds",
                 "spectral_min_gap_seconds",
+                "word_timestamps",
+                "min_embedding_seconds",
+                "merge_max_gap_seconds",
             ):
                 if field in validated:
                     payload[field] = validated[field]
