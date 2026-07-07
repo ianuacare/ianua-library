@@ -13,6 +13,11 @@ _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _SAFE_CHUNK_BYTES = 24 * 1024 * 1024
 _WAV_HEADER_MARGIN = 4096
 
+# Providers that speak the OpenAI Chat/Audio wire format and can be reached
+# with the official `openai` Python SDK by overriding `base_url`.
+_OPENAI_COMPATIBLE_PROVIDERS = {"openai", "groq"}
+_DEFAULT_PROVIDER_BASE_URLS = {"groq": "https://api.groq.com/openai/v1"}
+
 
 class SpeechTranscriptionProvider(AIProvider):
     """Adapter for file-based ASR providers (for example OpenAI audio API)."""
@@ -24,14 +29,19 @@ class SpeechTranscriptionProvider(AIProvider):
         *,
         provider: str = "openai",
         api_key: str | None = None,
+        base_url: str | None = None,
+        temperature: float | None = None,
     ) -> None:
-        self._client = client if client is not None else self._build_client(provider, api_key)
+        self._client = (
+            client if client is not None else self._build_client(provider, api_key, base_url)
+        )
         self._model = model
+        self._temperature = temperature
 
     @staticmethod
-    def _build_client(provider: str, api_key: str | None) -> Any | None:
+    def _build_client(provider: str, api_key: str | None, base_url: str | None = None) -> Any | None:
         selected = str(provider or "").strip().lower() or "openai"
-        if selected != "openai":
+        if selected not in _OPENAI_COMPATIBLE_PROVIDERS:
             return None
         if not isinstance(api_key, str) or not api_key.strip():
             return None
@@ -41,8 +51,13 @@ class SpeechTranscriptionProvider(AIProvider):
         except Exception:
             return None
 
+        resolved_base_url = (base_url or "").strip() or _DEFAULT_PROVIDER_BASE_URLS.get(selected)
+        client_kwargs: dict[str, Any] = {"api_key": api_key.strip()}
+        if resolved_base_url:
+            client_kwargs["base_url"] = resolved_base_url
+
         try:
-            return OpenAI(api_key=api_key.strip())
+            return OpenAI(**client_kwargs)
         except Exception:
             return None
 
@@ -74,7 +89,8 @@ class SpeechTranscriptionProvider(AIProvider):
         language = payload.get("language")
         response_format = str(payload.get("response_format") or "verbose_json")
         selected_model = model_name or self._model
-        use_word_timestamps = bool(payload.get("word_timestamps", False))
+        granularities = self._resolve_timestamp_granularities(payload)
+        temperature = self._resolve_temperature(payload)
 
         try:
             size = os.path.getsize(audio_path)
@@ -88,7 +104,8 @@ class SpeechTranscriptionProvider(AIProvider):
                     f,
                     language=language if isinstance(language, str) else None,
                     response_format=response_format,
-                    use_word_timestamps=use_word_timestamps,
+                    timestamp_granularities=granularities,
+                    temperature=temperature,
                 )
 
         return self._transcribe_chunked(
@@ -96,8 +113,29 @@ class SpeechTranscriptionProvider(AIProvider):
             audio_path,
             language=language if isinstance(language, str) else None,
             response_format=response_format,
-            use_word_timestamps=use_word_timestamps,
+            timestamp_granularities=granularities,
+            temperature=temperature,
         )
+
+    def _resolve_timestamp_granularities(self, payload: dict[str, Any]) -> list[str] | None:
+        """Explicit ``timestamp_granularities`` wins; else fall back to the
+        legacy ``word_timestamps`` boolean (kept for backward compatibility)."""
+        explicit = payload.get("timestamp_granularities")
+        if explicit is not None:
+            granularities = [str(g).strip() for g in explicit if str(g).strip()]
+            return granularities or None
+        if bool(payload.get("word_timestamps", False)):
+            return ["word", "segment"]
+        return None
+
+    def _resolve_temperature(self, payload: dict[str, Any]) -> float | None:
+        explicit = payload.get("temperature")
+        if explicit is not None:
+            try:
+                return float(explicit)
+            except (TypeError, ValueError):
+                return None
+        return self._temperature
 
     def _transcribe_file_handle(
         self,
@@ -106,7 +144,8 @@ class SpeechTranscriptionProvider(AIProvider):
         *,
         language: str | None,
         response_format: str,
-        use_word_timestamps: bool = False,
+        timestamp_granularities: list[str] | None = None,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
         assert self._client is not None
         kwargs: dict[str, Any] = {
@@ -115,8 +154,10 @@ class SpeechTranscriptionProvider(AIProvider):
             "language": language,
             "response_format": response_format,
         }
-        if use_word_timestamps:
-            kwargs["timestamp_granularities"] = ["word", "segment"]
+        if timestamp_granularities:
+            kwargs["timestamp_granularities"] = timestamp_granularities
+        if temperature is not None:
+            kwargs["temperature"] = temperature
         resp = self._client.audio.transcriptions.create(**kwargs)
         raw_segments = getattr(resp, "segments", None) or []
         segments = []
@@ -131,7 +172,7 @@ class SpeechTranscriptionProvider(AIProvider):
                 }
             )
         words: list[dict[str, Any]] = []
-        if use_word_timestamps:
+        if timestamp_granularities and "word" in timestamp_granularities:
             raw_words = getattr(resp, "words", None) or []
             for w in raw_words:
                 w_start = to_float(getattr(w, "start", 0.0), 0.0)
@@ -156,7 +197,8 @@ class SpeechTranscriptionProvider(AIProvider):
         *,
         language: str | None,
         response_format: str,
-        use_word_timestamps: bool = False,
+        timestamp_granularities: list[str] | None = None,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
         import librosa
         import soundfile as sf
@@ -186,7 +228,8 @@ class SpeechTranscriptionProvider(AIProvider):
                         f,
                         language=language,
                         response_format=response_format,
-                        use_word_timestamps=use_word_timestamps,
+                        timestamp_granularities=timestamp_granularities,
+                        temperature=temperature,
                     )
                 text_parts.append(str(part.get("text", "")).strip())
                 for segment in part.get("segments", []):
