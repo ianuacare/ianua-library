@@ -61,8 +61,6 @@ class InputDataParser:
             for field in (
                 "audio_path",
                 "num_speakers",
-                "min_speakers",
-                "max_speakers",
                 "language",
                 "response_format",
                 "merge_transcript_gaps",

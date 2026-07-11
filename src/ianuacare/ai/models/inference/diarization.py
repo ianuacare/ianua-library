@@ -136,9 +136,6 @@ class DiarizationModel(BaseAIModel):
         cluster_payload: dict[str, Any] = {"vectors": vectors}
         if "num_speakers" in payload:
             cluster_payload["num_speakers"] = payload.get("num_speakers")
-        for field in ("min_speakers", "max_speakers"):
-            if field in payload:
-                cluster_payload[field] = payload[field]
 
         labels = self._clusterer.run(cluster_payload)
         labels = _align_labels(labels, len(embedding_segments))
