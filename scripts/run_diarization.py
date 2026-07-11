@@ -146,7 +146,7 @@ def main() -> None:
         "spectral_min_gap_seconds": args.spectral_min_gap_seconds,
     }
     print(f"Audio: {audio_path}")
-    print("Running transcription (Whisper) + diarization (spectral split + MFCC clustering)...")
+    print("Running transcription (Whisper) + diarization (spectral split + CAM++ + K-Means)...")
 
     model = _build_diarization_model(whisper_model=args.whisper_model)
 

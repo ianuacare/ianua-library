@@ -75,6 +75,71 @@ def test_diarization_model_returns_segments() -> None:
     assert "speaker_id" in out["segments"][0]
 
 
+def test_diarization_returns_speakers_metadata() -> None:
+    provider = CallableProvider(
+        infer_fn=lambda model_name, payload: {
+            "text": "hello world",
+            "segments": [
+                {"start": 0.0, "end": 1.2, "text": "hello"},
+                {"start": 1.4, "end": 2.1, "text": "world"},
+            ],
+        }
+    )
+    transcription = Transcription(
+        provider=provider,
+        model_name="asr",
+        normalizer=ModelOutNormalizer(),
+    )
+    out = DiarizationModel(
+        transcription=transcription,
+        embedder=_StubSpeakerEmbedder(),
+        clusterer=SpeakerClusterer(),
+        min_embedding_seconds=0.0,
+    ).run({"audio_path": "/tmp/audio.wav", "num_speakers": 2})
+    assert out["speakers"]
+    speaker = out["speakers"][0]
+    assert isinstance(speaker["id"], int)
+    assert speaker["label"] == f"speaker_{speaker['id'] + 1}"
+    assert speaker["segment_count"] >= 1
+
+
+def test_diarization_merges_consecutive_same_speaker_chunks() -> None:
+    provider = CallableProvider(
+        infer_fn=lambda model_name, payload: {
+            "text": "a b c",
+            "segments": [
+                {"start": 0.0, "end": 10.0, "text": "a"},
+                {"start": 10.0, "end": 20.0, "text": "b"},
+                {"start": 20.0, "end": 30.0, "text": "c"},
+            ],
+        }
+    )
+    transcription = Transcription(
+        provider=provider,
+        model_name="asr",
+        normalizer=ModelOutNormalizer(),
+    )
+
+    class _GroupedEmbedder:
+        def run(self, payload: Any) -> list[list[float]]:
+            return [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]
+
+    out = DiarizationModel(
+        transcription=transcription,
+        embedder=_GroupedEmbedder(),
+        clusterer=SpeakerClusterer(),
+        use_spectral_split=False,
+        min_embedding_seconds=0.0,
+    ).run({"audio_path": "/tmp/audio.wav", "num_speakers": 2})
+    assert len(out["segments"]) == 2
+    assert out["segments"][0]["speaker_id"] != out["segments"][1]["speaker_id"]
+    assert out["segments"][0]["end"] == 20.0
+    assert "a" in out["segments"][0]["text"]
+    assert "b" in out["segments"][0]["text"]
+    assert out["segments"][1]["start"] == 20.0
+    assert out["segments"][1]["text"] == "c"
+
+
 def test_llm_model_with_normalizer() -> None:
     provider = CallableProvider(
         infer_fn=lambda model_name, payload: {

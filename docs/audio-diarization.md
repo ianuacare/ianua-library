@@ -42,16 +42,18 @@ from ianuacare import (
 1. Call `Transcription.run(payload)` (`provider.infer` + normalizer).
 2. Normalize transcript segments (`PauseParser`; by default **does not** merge short gaps).
 3. Detect spectral change-points on the audio file (MFCC cosine distance) and split ASR segments at those boundaries.
-4. Apply a duration cap (`max_segment_seconds`) on embedding chunks.
-5. Extract speaker embeddings per chunk (`SpeakerEmbedder`: MFCC + delta statistics, L2-normalized).
-6. Cluster embeddings (`SpeakerClusterer`: agglomerative clustering; Silhouette to pick `k` when `num_speakers` is omitted).
-7. Merge consecutive sub-chunks with the same speaker into output `segments`.
+4. Apply a duration cap (`max_segment_seconds`) and merge micro-turns shorter than `min_embedding_seconds` (default `1.0` s) so each embedding window carries enough speech for CAM++.
+5. Extract speaker embeddings per chunk (`CamPlusPlusEmbedder` by default: ONNX CAM++, 192-dim, L2-normalized; inject `SpeakerEmbedder` for librosa MFCC if needed).
+6. Cluster embeddings with `SpeakerClusterer` (K-Means on L2-normalized vectors; `k` from `num_speakers`, default `2`).
+7. Merge consecutive sub-chunks with the same speaker into output `segments` (gap tolerance ~50 ms).
 8. Return a dict with `raw_transcription`, `segments`, and `speakers`.
 
 ### Tuning parameters
 
 | Field | Default | Purpose |
 |-------|---------|---------|
+| `num_speakers` | `2` | Fixed cluster count for K-Means (typical: clinician + patient). |
+| `min_embedding_seconds` | `1.0` | Merge adjacent chunks shorter than this before embedding (CAM++ stability). |
 | `merge_transcript_gaps` | `false` | When `true`, merge Whisper segments with gap ≤ 1.5 s (legacy behaviour). |
 | `max_segment_seconds` | `30` | Duration cap applied **after** spectral splitting; `0` disables. |
 | `use_spectral_split` | `true` | Use MFCC change-point detection to find boundaries; falls back to uniform splitting on error. |
@@ -105,17 +107,27 @@ for segment in result["segments"]:
 
 ## Speaker count
 
-- **`num_speakers`**: fixed number of clusters (typical: `2` for clinician + patient).
-- **Omit `num_speakers`** or pass an invalid value: `SpeakerClusterer` searches `k` in `[min_speakers, max_speakers]` using the Silhouette score (defaults: 2–6).
-- **`min_speakers` / `max_speakers`**: bounds for automatic `k` selection.
+- **`num_speakers`**: fixed number of K-Means clusters (default **`2`**).
+- **Omit `num_speakers`** or pass an invalid value: falls back to **`2`** (or the default set on `SpeakerClusterer(num_speakers=…)` when injected).
 
 ```python
 result = model.run({
     "audio_path": "/path/to/session.wav",
-    "min_speakers": 2,
-    "max_speakers": 4,
+    "num_speakers": 2,
 })
 ```
+
+## Output shape
+
+Each item in `speakers` summarizes one cluster:
+
+| Field | Description |
+|-------|-------------|
+| `id` | 0-based cluster id |
+| `label` | `speaker_{id + 1}` |
+| `segment_count` | Number of output segments assigned to this speaker |
+
+Each item in `segments` has `start`, `end`, `text`, and `speaker_id` (same 0-based id as in `speakers`).
 
 ## LLM text generation (summaries and similar)
 
