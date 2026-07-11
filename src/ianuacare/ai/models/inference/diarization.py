@@ -142,7 +142,7 @@ class DiarizationModel(BaseAIModel):
         diarized_segments = merge_labeled_chunks(
             embedding_segments,
             labels,
-            merge_consecutive=False,
+            merge_consecutive=True,
         )
 
         speaker_counts: dict[int, int] = {}
