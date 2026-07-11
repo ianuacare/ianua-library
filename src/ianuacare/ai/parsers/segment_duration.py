@@ -22,11 +22,16 @@ _LABEL_GAP_TOLERANCE_SECONDS = 0.05
 # a stable embedding; below ~1s the vector is noisy and hurts clustering.
 DEFAULT_MIN_EMBEDDING_SECONDS = 1.0
 
+# A silence gap longer than this between adjacent chunks marks a likely speaker
+# turn: embedding windows never merge across it (see merge_short_chunks).
+DEFAULT_MERGE_MAX_GAP_SECONDS = 0.5
+
 
 def merge_short_chunks(
     segments: list[dict[str, Any]],
     *,
     min_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
+    max_gap_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """Consolidate adjacent chunks so each spans at least ``min_seconds``.
 
@@ -34,6 +39,13 @@ def merge_short_chunks(
     absorbed into the following one (times extended, text concatenated). A
     trailing too-short chunk is merged back into the previous kept chunk. When
     the total audio is shorter than ``min_seconds`` a single chunk is returned.
+
+    When ``max_gap_seconds`` is set, chunks separated by a silence gap larger
+    than it are never merged: with word-level chunks an inter-word pause is
+    strong evidence of a speaker turn, and a window straddling two speakers
+    yields a mixed embedding that degrades clustering. Windows left shorter
+    than ``min_seconds`` by such a break are kept as-is (the embedder decides
+    whether they carry enough speech).
 
     The original list is not modified.
     """
@@ -48,6 +60,12 @@ def merge_short_chunks(
         pieces = (str(target.get("text", "")).strip(), str(other.get("text", "")).strip())
         target["text"] = " ".join(piece for piece in pieces if piece).strip()
 
+    def _gap_breaks(prev: dict[str, Any], nxt: dict[str, Any]) -> bool:
+        if max_gap_seconds is None:
+            return False
+        gap = to_float(nxt.get("start"), 0.0) - to_float(prev.get("end"), 0.0)
+        return gap > max_gap_seconds
+
     merged: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     for segment in segments:
@@ -59,6 +77,10 @@ def merge_short_chunks(
         if current is None:
             current = candidate
             continue
+        if _gap_breaks(current, candidate):
+            merged.append(current)
+            current = candidate
+            continue
         if _duration(current) < min_seconds:
             _absorb(current, candidate)
             continue
@@ -66,7 +88,7 @@ def merge_short_chunks(
         current = candidate
 
     if current is not None:
-        if _duration(current) < min_seconds and merged:
+        if _duration(current) < min_seconds and merged and not _gap_breaks(merged[-1], current):
             _absorb(merged[-1], current)
         else:
             merged.append(current)

@@ -140,6 +140,62 @@ def test_diarization_merges_consecutive_same_speaker_chunks() -> None:
     assert out["segments"][1]["text"] == "c"
 
 
+def test_diarization_warns_when_word_timestamps_missing(caplog: Any) -> None:
+    """Regression #15: silent fallback to segment windows was undetectable."""
+    provider = CallableProvider(
+        infer_fn=lambda model_name, payload: {
+            "text": "hello world",
+            "segments": [{"start": 0.0, "end": 2.0, "text": "hello world"}],
+        }
+    )
+    transcription = Transcription(
+        provider=provider, model_name="asr", normalizer=ModelOutNormalizer()
+    )
+    model = DiarizationModel(
+        transcription=transcription,
+        embedder=_StubSpeakerEmbedder(),
+        clusterer=SpeakerClusterer(),
+    )
+    with caplog.at_level("WARNING"):
+        model.run({"audio_path": "/tmp/audio.wav", "num_speakers": 2, "word_timestamps": True})
+    assert any("word_timestamps requested" in r.message for r in caplog.records)
+
+
+def test_diarization_uses_word_windows_when_available() -> None:
+    provider = CallableProvider(
+        infer_fn=lambda model_name, payload: {
+            "text": "ciao anna come stai",
+            "segments": [{"start": 0.0, "end": 4.4, "text": "ciao anna come stai"}],
+            "words": [
+                {"start": 0.0, "end": 1.1, "text": "ciao"},
+                {"start": 1.1, "end": 2.2, "text": "anna"},
+                {"start": 2.2, "end": 3.3, "text": "come"},
+                {"start": 3.3, "end": 4.4, "text": "stai"},
+            ],
+        }
+    )
+    transcription = Transcription(
+        provider=provider, model_name="asr", normalizer=ModelOutNormalizer()
+    )
+
+    class _AlternatingEmbedder:
+        def run(self, payload: Any) -> list[list[float]]:
+            segments = payload.get("segments", [])
+            return [[1.0, 0.0] if i % 2 == 0 else [0.0, 1.0] for i, _ in enumerate(segments)]
+
+    out = DiarizationModel(
+        transcription=transcription,
+        embedder=_AlternatingEmbedder(),
+        clusterer=SpeakerClusterer(),
+        use_spectral_split=False,
+    ).run({"audio_path": "/tmp/audio.wav", "num_speakers": 2, "word_timestamps": True})
+    # 4 words of 1.1s each -> 4 embedding windows -> alternating speakers
+    assert len(out["segments"]) == 4
+    labels = [s["speaker_id"] for s in out["segments"]]
+    assert len(set(labels)) == 2
+    assert all(labels[i] != labels[i + 1] for i in range(len(labels) - 1))
+
+
 def test_llm_model_with_normalizer() -> None:
     provider = CallableProvider(
         infer_fn=lambda model_name, payload: {

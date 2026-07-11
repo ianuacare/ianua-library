@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+_LOG = logging.getLogger(__name__)
 
 from ianuacare.ai._numeric import to_float
 from ianuacare.ai.models.inference.base import BaseAIModel
@@ -12,6 +15,7 @@ from ianuacare.ai.models.inference.transcription import Transcription
 from ianuacare.ai.parsers.pause import PauseParser
 from ianuacare.ai.parsers.segment_duration import (
     DEFAULT_MAX_SEGMENT_SECONDS,
+    DEFAULT_MERGE_MAX_GAP_SECONDS,
     DEFAULT_MIN_EMBEDDING_SECONDS,
     merge_labeled_chunks,
     merge_short_chunks,
@@ -57,6 +61,7 @@ class DiarizationModel(BaseAIModel):
         spectral_threshold: float = _DEFAULT_THRESHOLD,
         spectral_min_gap_seconds: float = _DEFAULT_MIN_GAP_SECONDS,
         min_embedding_seconds: float = DEFAULT_MIN_EMBEDDING_SECONDS,
+        merge_max_gap_seconds: float | None = DEFAULT_MERGE_MAX_GAP_SECONDS,
     ) -> None:
         self._transcription = transcription
         self._pause_parser = pause_parser or PauseParser(merge_gaps=merge_transcript_gaps)
@@ -71,12 +76,19 @@ class DiarizationModel(BaseAIModel):
         self._spectral_threshold = spectral_threshold
         self._spectral_min_gap_seconds = spectral_min_gap_seconds
         self._min_embedding_seconds = min_embedding_seconds
+        self._merge_max_gap_seconds = merge_max_gap_seconds
 
     def run(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {"raw_transcription": "", "segments": [], "speakers": []}
 
-        transcript = self._run_transcription(payload)
+        use_word_ts = bool(payload.get("word_timestamps", False))
+        # Inject word_timestamps flag into transcription payload so the provider
+        # requests timestamp_granularities=["word","segment"] from Whisper.
+        transcription_payload = dict(payload)
+        transcription_payload["word_timestamps"] = use_word_ts
+
+        transcript = self._run_transcription(transcription_payload)
         segments = transcript.get("segments", [])
         if not isinstance(segments, list):
             segments = []
@@ -84,6 +96,28 @@ class DiarizationModel(BaseAIModel):
         merge_gaps = self._resolve_merge_gaps(payload)
         max_segment_seconds = self._resolve_max_segment_seconds(payload)
         normalized = self._pause_parser.parse(segments, merge_gaps=merge_gaps)
+
+        # When word-level timestamps are available, use individual words as
+        # fine-grained embedding windows instead of full ASR segments.
+        # Each word becomes its own chunk; merge_short_chunks then consolidates
+        # them to the minimum duration needed for a stable CAM++ embedding.
+        words = transcript.get("words") if use_word_ts else None
+        if use_word_ts and not words:
+            _LOG.warning(
+                "word_timestamps requested but transcript has no words; "
+                "falling back to ASR segment windows (provider=%s)",
+                type(self._transcription).__name__,
+            )
+        if words and isinstance(words, list) and len(words) > 1:
+            normalized = [
+                {
+                    "start": to_float(w.get("start"), 0.0),
+                    "end": to_float(w.get("end"), to_float(w.get("start"), 0.0)),
+                    "text": str(w.get("text", "")).strip(),
+                }
+                for w in words
+                if isinstance(w, dict)
+            ]
 
         use_spectral = bool(payload.get("use_spectral_split", self._use_spectral_split))
 
@@ -101,10 +135,13 @@ class DiarizationModel(BaseAIModel):
             )
 
         # Consolidate micro-turns so each window carries enough speech for a
-        # stable neural (CAM++) embedding.
+        # stable neural (CAM++) embedding. Never merge across a silence gap:
+        # a pause is strong evidence of a speaker turn, and windows straddling
+        # two speakers produce mixed embeddings that collapse clustering.
         embedding_segments = merge_short_chunks(
             embedding_segments,
             min_seconds=self._resolve_min_embedding_seconds(payload),
+            max_gap_seconds=self._resolve_merge_max_gap_seconds(payload),
         )
 
         audio_path = payload.get("audio_path")
@@ -154,6 +191,23 @@ class DiarizationModel(BaseAIModel):
             {"id": sid, "label": f"speaker_{sid + 1}", "segment_count": count}
             for sid, count in sorted(speaker_counts.items())
         ]
+
+        total_segments = len(diarized_segments)
+        if total_segments > 1 and speaker_counts:
+            dominant_count = max(speaker_counts.values())
+            dominant_ratio = dominant_count / total_segments
+            if dominant_ratio >= 0.9:
+                dominant_id = max(speaker_counts, key=lambda k: speaker_counts[k])
+                _LOG.warning(
+                    "diarization_collapse: %.0f%% of %d segments assigned to speaker_%d "
+                    "(num_speakers=%s). Embeddings may not be discriminative for this audio — "
+                    "consider a language-agnostic speaker embedding model.",
+                    dominant_ratio * 100,
+                    total_segments,
+                    dominant_id + 1,
+                    payload.get("num_speakers"),
+                )
+
         return {
             "raw_transcription": str(transcript.get("text", "")),
             "segments": diarized_segments,
@@ -202,6 +256,15 @@ class DiarizationModel(BaseAIModel):
         if "max_segment_seconds" in payload:
             return max(0.0, to_float(payload.get("max_segment_seconds"), self._max_segment_seconds))
         return self._max_segment_seconds
+
+    def _resolve_merge_max_gap_seconds(self, payload: dict[str, Any]) -> float | None:
+        if "merge_max_gap_seconds" in payload:
+            raw = payload.get("merge_max_gap_seconds")
+            if raw is None:
+                return None
+            value = to_float(raw, -1.0)
+            return value if value >= 0.0 else self._merge_max_gap_seconds
+        return self._merge_max_gap_seconds
 
     def _resolve_min_embedding_seconds(self, payload: dict[str, Any]) -> float:
         if "min_embedding_seconds" in payload:
