@@ -142,7 +142,11 @@ class DiarizationModel(BaseAIModel):
 
         labels = self._clusterer.run(cluster_payload)
         labels = _align_labels(labels, len(embedding_segments))
-        diarized_segments = merge_labeled_chunks(embedding_segments, labels)
+        diarized_segments = merge_labeled_chunks(
+            embedding_segments,
+            labels,
+            merge_consecutive=False,
+        )
 
         speaker_counts: dict[int, int] = {}
         for segment in diarized_segments:

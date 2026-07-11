@@ -47,3 +47,16 @@ def test_merge_labeled_chunks_combines_same_speaker() -> None:
     assert merged[0]["end"] == 20.0
     assert "hello" in merged[0]["text"]
     assert "world" in merged[0]["text"]
+
+
+def test_merge_labeled_chunks_skips_merge_when_disabled() -> None:
+    chunks = [
+        {"start": 0.0, "end": 10.0, "text": "hello"},
+        {"start": 10.0, "end": 20.0, "text": "world"},
+        {"start": 20.0, "end": 30.0, "text": "other"},
+    ]
+    labeled = merge_labeled_chunks(chunks, [0, 0, 1], merge_consecutive=False)
+    assert len(labeled) == 3
+    assert labeled[0]["speaker_id"] == 0
+    assert labeled[1]["speaker_id"] == 0
+    assert labeled[2]["speaker_id"] == 1

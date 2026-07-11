@@ -116,12 +116,25 @@ def split_by_max_duration(
 def merge_labeled_chunks(
     chunks: list[dict[str, Any]],
     labels: list[int],
+    *,
+    merge_consecutive: bool = True,
 ) -> list[dict[str, Any]]:
-    """Merge consecutive sub-chunks that share the same speaker label."""
+    """Attach speaker labels to chunks, optionally merging consecutive same-speaker runs."""
     if not chunks:
         return []
 
     aligned = _align_labels(labels, len(chunks))
+    if not merge_consecutive:
+        return [
+            {
+                "start": to_float(chunk.get("start"), 0.0),
+                "end": to_float(chunk.get("end"), to_float(chunk.get("start"), 0.0)),
+                "text": str(chunk.get("text", "")).strip(),
+                "speaker_id": label,
+            }
+            for chunk, label in zip(chunks, aligned, strict=True)
+        ]
+
     merged: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
 
