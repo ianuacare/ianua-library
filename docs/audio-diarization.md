@@ -45,7 +45,7 @@ from ianuacare import (
 4. Apply a duration cap (`max_segment_seconds`) and merge micro-turns shorter than `min_embedding_seconds` (default `1.0` s) so each embedding window carries enough speech for CAM++.
 5. Extract speaker embeddings per chunk (`CamPlusPlusEmbedder` by default: ONNX CAM++, 192-dim, L2-normalized; inject `SpeakerEmbedder` for librosa MFCC if needed).
 6. Cluster embeddings with `SpeakerClusterer` (K-Means on L2-normalized vectors; `k` from `num_speakers`, default `2`).
-7. Merge consecutive sub-chunks with the same speaker into output `segments` (gap tolerance ~50 ms).
+7. Attach `speaker_id` to each embedding chunk without merging consecutive same-speaker runs.
 8. Return a dict with `raw_transcription`, `segments`, and `speakers`.
 
 ### Tuning parameters

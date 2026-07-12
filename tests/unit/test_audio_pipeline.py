@@ -103,7 +103,7 @@ def test_diarization_returns_speakers_metadata() -> None:
     assert speaker["segment_count"] >= 1
 
 
-def test_diarization_merges_consecutive_same_speaker_chunks() -> None:
+def test_diarization_keeps_consecutive_same_speaker_chunks_separate() -> None:
     provider = CallableProvider(
         infer_fn=lambda model_name, payload: {
             "text": "a b c",
@@ -131,13 +131,12 @@ def test_diarization_merges_consecutive_same_speaker_chunks() -> None:
         use_spectral_split=False,
         min_embedding_seconds=0.0,
     ).run({"audio_path": "/tmp/audio.wav", "num_speakers": 2})
-    assert len(out["segments"]) == 2
-    assert out["segments"][0]["speaker_id"] != out["segments"][1]["speaker_id"]
-    assert out["segments"][0]["end"] == 20.0
-    assert "a" in out["segments"][0]["text"]
-    assert "b" in out["segments"][0]["text"]
-    assert out["segments"][1]["start"] == 20.0
-    assert out["segments"][1]["text"] == "c"
+    assert len(out["segments"]) == 3
+    assert out["segments"][0]["speaker_id"] == out["segments"][1]["speaker_id"]
+    assert out["segments"][0]["speaker_id"] != out["segments"][2]["speaker_id"]
+    assert out["segments"][0]["text"] == "a"
+    assert out["segments"][1]["text"] == "b"
+    assert out["segments"][2]["text"] == "c"
 
 
 def test_diarization_warns_when_word_timestamps_missing(caplog: Any) -> None:
