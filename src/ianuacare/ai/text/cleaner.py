@@ -6,7 +6,6 @@ import re
 import unicodedata
 
 _WHITESPACE_RE = re.compile(r"\s+")
-_WORD_RE = re.compile(r"\w+", re.UNICODE)
 _DEFAULT_STOPWORDS = frozenset(
     {
         "a",
@@ -41,6 +40,17 @@ _DEFAULT_STOPWORDS = frozenset(
         "una",
     }
 )
+_STOPWORD_RE = re.compile(
+    r"(?i)\b(?:"
+    + "|".join(re.escape(word) for word in sorted(_DEFAULT_STOPWORDS, key=len, reverse=True))
+    + r")\b"
+)
+
+
+def _remove_stopwords(text: str) -> str:
+    """Drop Italian stop words while keeping punctuation and apostrophes intact."""
+    without = _STOPWORD_RE.sub("", text)
+    return _WHITESPACE_RE.sub(" ", without).strip()
 
 
 def clean_text(
@@ -56,7 +66,7 @@ def clean_text(
     whitespace (including tabs and newlines) with a single space, and strips
     leading/trailing whitespace. When ``lowercase`` is true the final string
     is lower-cased. When ``remove_stopwords`` is true, common Italian stop
-    words are dropped and the remaining tokens are rejoined with single spaces.
+    words are removed by whole-word match; punctuation is preserved.
     """
     if not isinstance(text, str):
         raise TypeError("text must be a string")
@@ -65,8 +75,5 @@ def clean_text(
     if lowercase:
         collapsed = collapsed.lower()
     if remove_stopwords:
-        tokens = _WORD_RE.findall(collapsed)
-        collapsed = " ".join(
-            token for token in tokens if token.lower() not in _DEFAULT_STOPWORDS
-        )
+        collapsed = _remove_stopwords(collapsed)
     return collapsed

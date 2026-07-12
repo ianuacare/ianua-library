@@ -72,9 +72,9 @@ def test_parse_text_embedder_default_sentences_only() -> None:
     InputDataParser().parse(p, model_key="text_embedder")
     assert p.parsed_data == {
         "id_artefatto_trascrizione": "tr-1",
-        "text": "Prima frase Seconda frase",
-        "chunks": ["Prima frase Seconda frase"],
-        "sentences": ["Prima frase Seconda frase"],
+        "text": "Prima frase. Seconda frase!",
+        "chunks": ["Prima frase. Seconda frase!"],
+        "sentences": ["Prima frase.", "Seconda frase!"],
         "words": [],
     }
 
@@ -152,7 +152,7 @@ def test_parse_text_embedder_chunks_long_text() -> None:
     )
     InputDataParser(max_tokens=3).parse(p, model_key="text_embedder")
     assert len(p.parsed_data["chunks"]) > 1
-    assert p.parsed_data["text"] == "uno due tre quattro cinque sei"
+    assert p.parsed_data["text"] == "uno due tre quattro cinque sei."
 
 
 def test_parse_text_embedder_rejects_invalid_max_tokens() -> None:
