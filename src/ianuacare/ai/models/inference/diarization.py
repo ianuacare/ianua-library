@@ -173,13 +173,14 @@ class DiarizationModel(BaseAIModel):
         cluster_payload: dict[str, Any] = {"vectors": vectors}
         if "num_speakers" in payload:
             cluster_payload["num_speakers"] = payload.get("num_speakers")
-        for field in ("min_speakers", "max_speakers"):
-            if field in payload:
-                cluster_payload[field] = payload[field]
 
         labels = self._clusterer.run(cluster_payload)
         labels = _align_labels(labels, len(embedding_segments))
-        diarized_segments = merge_labeled_chunks(embedding_segments, labels)
+        diarized_segments = merge_labeled_chunks(
+            embedding_segments,
+            labels,
+            merge_consecutive=False,
+        )
 
         speaker_counts: dict[int, int] = {}
         for segment in diarized_segments:

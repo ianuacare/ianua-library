@@ -160,6 +160,9 @@ def test_diarization_accepts_invalid_num_speakers() -> None:
     )
     assert "speakers" in out
     assert len(out["segments"]) >= 1
+    assert out["speakers"][0]["id"] == 0
+    assert out["speakers"][0]["label"] == "speaker_1"
+    assert out["speakers"][0]["segment_count"] >= 1
 
 
 def test_pause_parser_merges_short_gaps() -> None:

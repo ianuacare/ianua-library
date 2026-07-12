@@ -8,7 +8,6 @@ Requirements:
 Usage:
   python scripts/run_diarization.py /path/to/session.wav
   python scripts/run_diarization.py /path/to/session.wav --num-speakers 2 --language it
-  python scripts/run_diarization.py /path/to/session.wav --estimate-speakers
 """
 
 from __future__ import annotations
@@ -82,15 +81,8 @@ def main() -> None:
     parser.add_argument(
         "--num-speakers",
         type=int,
-        default=None,
-        help="Fixed speaker count (default: estimate with Silhouette between min and max)",
-    )
-    parser.add_argument("--min-speakers", type=int, default=2, help="Lower bound when estimating k")
-    parser.add_argument("--max-speakers", type=int, default=6, help="Upper bound when estimating k")
-    parser.add_argument(
-        "--estimate-speakers",
-        action="store_true",
-        help="Do not pass num_speakers (Silhouette picks k in [min-speakers, max-speakers])",
+        default=2,
+        help="Number of speaker clusters for K-Means (default: 2)",
     )
     parser.add_argument("--language", default="it", help="Whisper language code (e.g. it, en)")
     parser.add_argument(
@@ -145,8 +137,7 @@ def main() -> None:
         "audio_path": str(audio_path),
         "language": args.language,
         "response_format": "verbose_json",
-        "min_speakers": args.min_speakers,
-        "max_speakers": args.max_speakers,
+        "num_speakers": args.num_speakers,
         "merge_transcript_gaps": args.merge_transcript_gaps,
         "max_segment_seconds": args.max_segment_seconds,
         "use_spectral_split": not args.no_spectral_split,
@@ -154,11 +145,8 @@ def main() -> None:
         "spectral_hop_seconds": args.spectral_hop_seconds,
         "spectral_min_gap_seconds": args.spectral_min_gap_seconds,
     }
-    if not args.estimate_speakers and args.num_speakers is not None:
-        validated_input["num_speakers"] = args.num_speakers
-
     print(f"Audio: {audio_path}")
-    print("Running transcription (Whisper) + diarization (spectral split + MFCC clustering)...")
+    print("Running transcription (Whisper) + diarization (spectral split + CAM++ + K-Means)...")
 
     model = _build_diarization_model(whisper_model=args.whisper_model)
 

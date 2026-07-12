@@ -1,28 +1,25 @@
-"""Speaker clustering with agglomerative clustering and optional Silhouette k selection."""
+"""Speaker clustering with K-Means."""
 
 from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
 
-from ianuacare.ai._numeric import to_positive_int
 from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.exceptions.errors import InferenceError, ValidationError
 
+DEFAULT_NUM_SPEAKERS = 2
 
-def _import_sklearn() -> tuple[Any, Any, Any]:
+
+def _import_sklearn() -> tuple[Any, Any]:
     try:
         cluster_mod = import_module("sklearn.cluster")
-        metrics_mod = import_module("sklearn.metrics")
         preprocessing_mod = import_module("sklearn.preprocessing")
     except ImportError as exc:
         raise InferenceError(
             "scikit-learn is required for SpeakerClusterer; install with pip install -e '.[audio]'"
         ) from exc
-    agglomerative_cls = cluster_mod.AgglomerativeClustering
-    silhouette_fn = metrics_mod.silhouette_score
-    normalize_cls = preprocessing_mod.normalize
-    return agglomerative_cls, silhouette_fn, normalize_cls
+    return cluster_mod.KMeans, preprocessing_mod.normalize
 
 
 def _coerce_vectors(raw_vectors: Any) -> list[list[float]]:
@@ -46,42 +43,16 @@ def _valid_vectors(vectors: list[list[float]]) -> list[list[float]]:
     return [vector for vector in vectors if vector]
 
 
-def _select_k_silhouette(
-    matrix: Any,
-    *,
-    min_speakers: int,
-    max_speakers: int,
-    agglomerative_cls: Any,
-    silhouette_fn: Any,
-) -> int:
-    n_samples = int(matrix.shape[0])
-    if n_samples < 2:
-        return 1
-
-    lower = max(2, min_speakers)
-    upper = min(max_speakers, n_samples)
-    if lower > upper:
-        return max(1, min(n_samples, min_speakers))
-
-    best_k = lower
-    best_score = float("-inf")
-    for k in range(lower, upper + 1):
-        if k >= n_samples:
-            break
-        model = agglomerative_cls(n_clusters=k, metric="cosine", linkage="average")
-        labels = model.fit_predict(matrix)
-        unique = {int(label) for label in labels.tolist()}
-        if len(unique) < 2:
-            continue
-        score = float(silhouette_fn(matrix, labels, metric="cosine"))
-        if score > best_score:
-            best_score = score
-            best_k = k
-    return best_k
-
-
 class SpeakerClusterer(BaseAIModel):
-    """Cluster speaker embeddings; estimate k with Silhouette when ``num_speakers`` is unset."""
+    """Cluster speaker embeddings with K-Means."""
+
+    def __init__(
+        self,
+        num_speakers: int = DEFAULT_NUM_SPEAKERS,
+        random_state: int = 42,
+    ) -> None:
+        self._num_speakers = max(1, num_speakers)
+        self._random_state = random_state
 
     def run(self, payload: Any) -> list[int]:
         if not isinstance(payload, dict):
@@ -96,42 +67,36 @@ class SpeakerClusterer(BaseAIModel):
         if not valid:
             return [0] * n_segments
 
-        num_speakers = _parse_optional_num_speakers(payload.get("num_speakers"))
-        min_speakers = to_positive_int(payload.get("min_speakers"), default=2, minimum=2)
-        max_speakers = to_positive_int(payload.get("max_speakers"), default=6, minimum=2)
-        if max_speakers < min_speakers:
-            max_speakers = min_speakers
-
-        agglomerative_cls, silhouette_fn, normalize_cls = _import_sklearn()
-        try:
-            numpy_mod = import_module("numpy")
-        except ImportError as exc:
-            raise InferenceError("numpy is required for SpeakerClusterer") from exc
-
-        matrix = numpy_mod.asarray(valid, dtype=numpy_mod.float64)
-        matrix = normalize_cls(matrix, norm="l2")
-
-        if num_speakers is None:
-            k = _select_k_silhouette(
-                matrix,
-                min_speakers=min_speakers,
-                max_speakers=max_speakers,
-                agglomerative_cls=agglomerative_cls,
-                silhouette_fn=silhouette_fn,
-            )
-        else:
-            k = max(1, min(num_speakers, len(valid)))
+        k = _resolve_num_clusters(
+            payload.get("num_speakers"),
+            default=self._num_speakers,
+            max_clusters=len(valid),
+        )
 
         if k <= 1:
             cluster_labels = [0] * len(valid)
         else:
-            model = agglomerative_cls(n_clusters=k, metric="cosine", linkage="average")
+            kmeans_cls, normalize_cls = _import_sklearn()
+            try:
+                numpy_mod = import_module("numpy")
+            except ImportError as exc:
+                raise InferenceError("numpy is required for SpeakerClusterer") from exc
+
+            matrix = numpy_mod.asarray(valid, dtype=numpy_mod.float64)
+            matrix = normalize_cls(matrix, norm="l2")
+            model = kmeans_cls(n_clusters=k, random_state=self._random_state, n_init="auto")
             cluster_labels = [int(label) for label in model.fit_predict(matrix).tolist()]
 
         return _map_labels_to_segments(vectors, cluster_labels)
 
 
-def _parse_optional_num_speakers(value: Any) -> int | None:
+def _resolve_num_clusters(value: Any, *, default: int, max_clusters: int) -> int:
+    parsed = _parse_num_speakers(value)
+    k = parsed if parsed is not None else default
+    return max(1, min(k, max_clusters))
+
+
+def _parse_num_speakers(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, bool):
