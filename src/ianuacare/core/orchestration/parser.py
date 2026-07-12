@@ -96,25 +96,39 @@ class InputDataParser:
         split_sentences_flag = bool(validated.get("split_sentences", True))
         split_words_flag = bool(validated.get("split_words", False))
         lowercase = bool(validated.get("lowercase", False))
-        remove_stopwords = bool(validated.get("remove_stopwords", True))
+        remove_stopwords = bool(validated.get("remove_stopwords", False))
 
-        cleaned = clean_text(
-            text,
-            lowercase=lowercase,
-            remove_stopwords=remove_stopwords,
+        # Split on sentence boundaries before optional stopword removal so
+        # punctuation remains available for the splitter.
+        normalized = clean_text(text, lowercase=lowercase, remove_stopwords=False)
+        raw_sentences = split_sentences(normalized) if split_sentences_flag else []
+        cleaned = (
+            clean_text(normalized, remove_stopwords=True)
+            if remove_stopwords
+            else normalized
         )
-        raw_sentences = split_sentences(cleaned) if split_sentences_flag else []
         # A single sentence produced by split_sentences may exceed the
         # embedding model's context limit (e.g. a long therapist monologue).
         # Re-chunk any oversized sentence so every item in the batch fits.
         sentences: list[str] = []
         for sentence in raw_sentences:
-            if count_tokens(sentence, self._tokenizer) > self._max_tokens:
+            sentence_text = (
+                clean_text(sentence, remove_stopwords=True)
+                if remove_stopwords
+                else sentence
+            )
+            if not sentence_text:
+                continue
+            if count_tokens(sentence_text, self._tokenizer) > self._max_tokens:
                 sentences.extend(
-                    chunk_text(sentence, max_tokens=self._max_tokens, tokenizer=self._tokenizer)
+                    chunk_text(
+                        sentence_text,
+                        max_tokens=self._max_tokens,
+                        tokenizer=self._tokenizer,
+                    )
                 )
             else:
-                sentences.append(sentence)
+                sentences.append(sentence_text)
         words = split_words(cleaned) if split_words_flag else []
         chunks = chunk_text(
             cleaned,

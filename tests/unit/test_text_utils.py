@@ -27,6 +27,20 @@ class TestCleanText:
             == "paziente ha dolore braccio"
         )
 
+    def test_remove_stopwords_preserves_punctuation(self) -> None:
+        assert (
+            clean_text("Il paziente ha un dolore al braccio.", remove_stopwords=True)
+            == "paziente ha dolore braccio."
+        )
+        assert (
+            clean_text("Buongiorno, accomodati pure. Come stai?", remove_stopwords=True)
+            == "Buongiorno, accomodati pure. Come stai?"
+        )
+        assert (
+            clean_text("Sì, c'è agitazione.", remove_stopwords=True)
+            == "Sì, c'è agitazione."
+        )
+
     def test_remove_stopwords_with_lowercase(self) -> None:
         assert (
             clean_text(
