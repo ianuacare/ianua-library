@@ -184,23 +184,33 @@ class LabelClusterer(BaseAIModel):
         if not vectors:
             return [], []
         dimensions = len(vectors[0])
-        n_components = min(2, len(vectors), dimensions)
+        n_samples = len(vectors)
+        n_components = min(2, n_samples, dimensions)
         if n_components <= 0:
             return [], []
+        if n_samples < 2:
+            return [[0.0] * n_components for _ in vectors], []
         try:
-            pca_mod = import_module("sklearn.decomposition")
-            pca_cls = getattr(pca_mod, "PCA")
+            tsne_mod = import_module("sklearn.manifold")
+            tsne_cls = getattr(tsne_mod, "TSNE")
         except ImportError as exc:
-            raise InferenceError("scikit-learn is required for LabelClusterer PCA projection") from exc
+            raise InferenceError("scikit-learn is required for LabelClusterer t-SNE projection") from exc
 
-        model = pca_cls(n_components=n_components)
+        perplexity = min(30.0, max(1.0, (n_samples - 1) / 3))
+        model = tsne_cls(
+            n_components=n_components,
+            perplexity=perplexity,
+            random_state=self._random_state,
+            init="pca",
+        )
         projected_nd = model.fit_transform(vectors)
         projected = [
             [float(component) for component in row]
             for row in projected_nd.tolist()
         ]
-        explained = [float(value) for value in model.explained_variance_ratio_.tolist()]
-        return projected, explained
+        # t-SNE has no explained-variance concept (unlike PCA); kept as an empty
+        # list for output shape compatibility with existing consumers.
+        return projected, []
 
     @staticmethod
     def _mean_vector(vectors: list[Any]) -> list[float]:
