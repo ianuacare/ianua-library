@@ -275,6 +275,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `SpeechTranscriptionProvider` — file-based ASR adapter (chunking for large audio; `params` accepted, ignored).
 - `RestHostedModelProvider` — POST to a hosted REST endpoint via injectable `build_request` / `parse_response` / `post_fn`; merges `params` into dict payloads before `build_request`.
 - `RestRequest` — dataclass (`url`, `headers`, `body`, `method`) returned by `build_request`.
+- `SelfHostedEmbeddingProvider(endpoint_url, *, api_key=None, input_type="document", instruction=None, dimensions=None, batch_size=32, timeout_seconds=600.0, post_fn=None)` — self-hosted text embedding adapter; sends `{"model": model_name, "payload": {"texts": [...]}}` and returns the `embeddings` list. Splits the batch into `batch_size` requests preserving order, and merges constructor defaults with per-call `params` (per-call wins). Drop-in provider for `TextEmbedder`.
 
 ### Parsers (`ianuacare.ai.parsers`)
 

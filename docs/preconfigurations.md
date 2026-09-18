@@ -27,6 +27,44 @@ All require the **`aws`** extra (`pip install "ianuacare[aws]"` or equivalent): 
 
 - :material-brain: `TogetherAIProvider` (`ianuacare.ai.providers`) for Together chat inference and embeddings (`pip install "ianuacare[together]"`).
 - :material-api: `RestHostedModelProvider` (`ianuacare.ai.providers`) for custom REST-hosted models (injectable request/response hooks; stdlib HTTP).
+- :material-server-network: `SelfHostedEmbeddingProvider` (`ianuacare.ai.providers`) for text embeddings served by your own REST endpoint (stdlib HTTP, no extra dependency).
+
+#### Self-hosted text embeddings
+
+The provider posts `{"model": model_name, "payload": {"texts": [...]}}` and reads back `embeddings`, the `list[list[float]]` shape `TextEmbedder` expects. Long inputs are split into `batch_size` requests and reassembled in order.
+
+```python
+from ianuacare import SelfHostedEmbeddingProvider, TextEmbedder
+
+documents = SelfHostedEmbeddingProvider(
+    "http://localhost:8012/infer",
+    api_key=os.environ.get("EMBEDDING_API_KEY"),
+    dimensions=1024,
+)
+
+embedder = TextEmbedder(provider=documents, model_name="qwen3-embedding")
+artefact = embedder.run(
+    {
+        "id_artefatto_trascrizione": "tr-1",
+        "text": "Il paziente riferisce miglioramenti del sonno.",
+        "chunks": ["Il paziente riferisce miglioramenti del sonno."],
+    }
+)
+```
+
+Endpoints that format queries differently from documents (for example with an instruction prefix) need a second instance. `TextEmbedder` never forwards `params`, so the distinction lives in the constructor: wire the `document` instance into indexing and the `query` one into search, keeping the same model and `dimensions` on both.
+
+```python
+queries = SelfHostedEmbeddingProvider(
+    "http://localhost:8012/infer",
+    input_type="query",
+    instruction="Find relevant document passages that answer the user's search query.",
+    dimensions=1024,
+)
+query_vector = queries.infer("qwen3-embedding", "Come sta dormendo il paziente?")[0]
+```
+
+Per-call `params` override the constructor defaults, so a single instance can still serve both modes: `provider.infer(model, texts, params={"input_type": "query"})`.
 
 #### LLM generation parameters
 

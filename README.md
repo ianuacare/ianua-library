@@ -47,6 +47,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `TogetherAIProvider` (Together AI) — chat, embeddings; `LLMModel` supports construction-time generation params (`temperature`, `reasoning_effort`, `response_format`, …). See [docs/llm-generation-params.md](docs/llm-generation-params.md).
 - Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
 - Audio emotion (`AudioEmotionModel`, `RestHostedModelProvider`) — REST-hosted dimensional emotion (no extra dependency)
+- `SelfHostedEmbeddingProvider` — text embeddings from your own REST endpoint; plugs straight into `TextEmbedder` (no extra dependency)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)
 - `EnvConfigService` and `StructuredLogger`
