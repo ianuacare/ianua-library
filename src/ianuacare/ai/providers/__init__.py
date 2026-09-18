@@ -3,6 +3,7 @@
 from ianuacare.ai.providers.base import AIProvider
 from ianuacare.ai.providers.callable import CallableProvider
 from ianuacare.ai.providers.rest_hosted import RestHostedModelProvider, RestRequest
+from ianuacare.ai.providers.self_hosted_embedding import SelfHostedEmbeddingProvider
 from ianuacare.ai.providers.speech_transcription import SpeechTranscriptionProvider
 from ianuacare.ai.providers.together import TogetherAIProvider
 
@@ -11,6 +12,7 @@ __all__ = [
     "CallableProvider",
     "RestHostedModelProvider",
     "RestRequest",
+    "SelfHostedEmbeddingProvider",
     "SpeechTranscriptionProvider",
     "TogetherAIProvider",
 ]
