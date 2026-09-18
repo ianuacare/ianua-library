@@ -19,6 +19,7 @@ from ianuacare.ai.providers import (
     CallableProvider,
     RestHostedModelProvider,
     RestRequest,
+    SelfHostedEmbeddingProvider,
     SpeechTranscriptionProvider,
     TogetherAIProvider,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "PauseParser",
     "RestHostedModelProvider",
     "RestRequest",
+    "SelfHostedEmbeddingProvider",
     "SpeakerClusterer",
     "CamPlusPlusEmbedder",
     "SpeakerEmbedder",

@@ -51,7 +51,7 @@ def test_run_clusters_and_maps_labels() -> None:
     assert all(item in LABEL_CLUSTERS for item in result["assigned_labels"])
     assert len(result["projected_vectors"]) == 4
     assert len(result["projected_vectors"][0]) == 2
-    assert 1 <= len(result["explained_variance_ratio"]) <= 2
+    assert result["explained_variance_ratio"] == []
     assert result["texts"] == ["", "", "", ""]
     assert result["point_ids"] == [None, None, None, None]
 

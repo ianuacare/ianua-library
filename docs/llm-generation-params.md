@@ -115,6 +115,10 @@ See [Together AI chat parameters](https://docs.together.ai/docs/inference/chat/p
 
 When `params` is set, keys are merged into the dict payload before `build_request` (explicit payload keys win). Your `build_request` hook should forward them in the HTTP body.
 
+### `SelfHostedEmbeddingProvider`
+
+Here `params` carries embedding request options (`input_type`, `instruction`, `dimensions`), not generation knobs. Constructor arguments act as defaults; per-call `params` override them.
+
 ### `CallableProvider` / `SpeechTranscriptionProvider`
 
 Accept `params` for interface compatibility; they are ignored.
