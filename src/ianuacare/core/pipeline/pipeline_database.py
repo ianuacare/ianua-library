@@ -166,9 +166,7 @@ class PipelineDatabase:
 
         if operation == "upsert":
             artefatti = payload.get("artefatti") or []
-            vector_field = self._require_text(
-                payload.get("vector_field"), field="vector_field"
-            )
+            vector_field = self._require_text(payload.get("vector_field"), field="vector_field")
             packet.processed_data = self._writer.write_vector_upsert(
                 collection,
                 artefatti,
@@ -254,7 +252,7 @@ class PipelineDatabase:
         multi-bucket routing in application wiring; when set, it is stored on
         ``packet.metadata[\"bucket_name\"]`` for downstream adapters.
 
-        Operations: ``prepare_upload``, ``upload_direct``, ``retrieve``.
+        Operations: ``prepare_upload``, ``upload_direct``, ``retrieve``, ``retrieve_to_local``.
         """
         packet = self._data_manager.collect(input_data, context)
         if bucket_name:
@@ -300,6 +298,14 @@ class PipelineDatabase:
                 payload=payload,
                 context=context,
                 content_type=content_type,
+            )
+        elif operation == "retrieve_to_local":
+            packet.processed_data = self._reader.read_bucket_to_local(
+                collection=self._require_text(payload.get("collection"), field="collection"),
+                lookup_field=self._require_text(payload.get("lookup_field"), field="lookup_field"),
+                lookup_value=payload.get("lookup_value"),
+                local_path=payload.get("local_path"),
+                context=context,
             )
         elif operation == "retrieve":
             collection = self._require_text(payload.get("collection"), field="collection")

@@ -51,7 +51,7 @@ class DataValidator:
                 return self._validate_text_prepare(value)
             if operation == "upload_direct":
                 return self._validate_text_upload_direct(value)
-            if operation == "retrieve":
+            if operation in {"retrieve", "retrieve_to_local"}:
                 return self._validate_bucket_retrieve(value)
             raise ValidationError(f"Unsupported bucket operation: {operation}")
         raise ValidationError(f"Unsupported bucket content_type: {content_type}")
@@ -64,7 +64,7 @@ class DataValidator:
             return self._validate_audio_prepare(value)
         if operation == "upload_direct":
             return self._validate_audio_upload_direct(value)
-        if operation == "retrieve":
+        if operation in {"retrieve", "retrieve_to_local"}:
             return self._validate_bucket_retrieve(value)
         raise ValidationError(f"Unsupported audio operation: {operation}")
 
@@ -93,9 +93,7 @@ class DataValidator:
         if not isinstance(artefatti, list) or not artefatti:
             raise ValidationError("artefatti must be a non-empty list")
         if vector_field not in _VECTOR_LEVELS:
-            raise ValidationError(
-                f"vector_field must be one of {sorted(_VECTOR_LEVELS)}"
-            )
+            raise ValidationError(f"vector_field must be one of {sorted(_VECTOR_LEVELS)}")
         return payload
 
     @staticmethod
@@ -104,9 +102,7 @@ class DataValidator:
         if not isinstance(filters, dict) or "level" not in filters:
             raise ValidationError("filters.level is required")
         if filters["level"] not in _VECTOR_LEVELS:
-            raise ValidationError(
-                f"filters.level must be one of {sorted(_VECTOR_LEVELS)}"
-            )
+            raise ValidationError(f"filters.level must be one of {sorted(_VECTOR_LEVELS)}")
         has_vector = isinstance(payload.get("vector"), list) and bool(payload.get("vector"))
         has_prompt = isinstance(payload.get("prompt"), str) and bool(payload.get("prompt"))
         if not has_vector and not has_prompt:
@@ -177,6 +173,9 @@ class DataValidator:
             raise ValidationError("lookup_field is required")
         if payload.get("lookup_value") is None:
             raise ValidationError("lookup_value is required")
+        local_path = payload.get("local_path")
+        if local_path is not None and (not isinstance(local_path, str) or not local_path.strip()):
+            raise ValidationError("local_path must be a non-empty string")
         return payload
 
     def _validate_text_prepare(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -233,4 +232,3 @@ class DataValidator:
                 raise ValidationError("content_base64 is not valid base64") from exc
             return normalized
         raise ValidationError("content (bytes) or content_base64 is required for upload_direct")
-

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from ianuacare.core.exceptions.errors import StorageError, ValidationError
@@ -82,9 +84,7 @@ class Reader:
         if not isinstance(filters, dict) or "level" not in filters:
             raise ValidationError("filters.level is required for vector search")
         if filters["level"] not in _VALID_LEVELS:
-            raise ValidationError(
-                f"filters.level must be one of {sorted(_VALID_LEVELS)}"
-            )
+            raise ValidationError(f"filters.level must be one of {sorted(_VALID_LEVELS)}")
         if not isinstance(vector, list) or not vector:
             raise ValidationError("vector must be a non-empty list of floats")
         try:
@@ -152,6 +152,55 @@ class Reader:
             return {**record, "download_url": download_url}
         except Exception as exc:
             raise StorageError("Failed to read bucket record") from exc
+
+    def read_bucket_to_local(
+        self,
+        collection: str,
+        *,
+        lookup_field: str,
+        lookup_value: Any,
+        context: RequestContext,
+        local_path: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Download a record's object; the caller owns cleanup of the returned file.
+
+        Explicit destinations must not exist. Generated destinations are unique
+        temporary files and are removed if writing fails.
+        """
+        record = self.read_one(
+            collection,
+            lookup_field=lookup_field,
+            lookup_value=lookup_value,
+            context=context,
+        )
+        if record is None:
+            return None
+        if self._bucket is None:
+            raise StorageError("bucket_client is not configured on Reader")
+        key = record.get("object_key")
+        if not isinstance(key, str) or not key:
+            raise StorageError("bucket record requires object_key")
+        created: Path | None = None
+        try:
+            content = self._bucket.download(key)
+            if not isinstance(content, bytes):
+                raise StorageError("bucket object must contain bytes")
+            if local_path is None:
+                with tempfile.NamedTemporaryFile(
+                    prefix="ianua-", suffix=Path(key).suffix, delete=False
+                ) as stream:
+                    created = Path(stream.name)
+                    stream.write(content)
+            else:
+                destination = Path(local_path).resolve()
+                with destination.open("xb") as stream:
+                    created = destination
+                    stream.write(content)
+            return {**record, "audio_path": str(created)}
+        except Exception as exc:
+            if created is not None:
+                created.unlink(missing_ok=True)
+            raise StorageError("Failed to download bucket object to local file") from exc
 
     def read_audio(
         self,

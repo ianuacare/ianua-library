@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
-from ianuacare.ai.text import DEFAULT_MAX_TOKENS, chunk_text, clean_text, count_tokens, split_sentences, split_words
+from ianuacare.ai.text import (
+    DEFAULT_MAX_TOKENS,
+    chunk_text,
+    clean_text,
+    count_tokens,
+    split_sentences,
+    split_words,
+)
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.packet import DataPacket
 
@@ -48,6 +56,26 @@ class InputDataParser:
         key = model_key.strip().lower()
         if key == "llm":
             return self._parse_llm_input(validated)
+
+        if key == "audio_emotion":
+            if not isinstance(validated, Mapping):
+                raise ValidationError("validated_data must be a mapping for audio_emotion")
+            if "segments" in validated and not isinstance(validated["segments"], list):
+                raise ValidationError("segments must be a list for audio_emotion")
+            return {
+                field: validated[field]
+                for field in (
+                    "audio_path",
+                    "audio_bytes",
+                    "audio_base64",
+                    "segments",
+                    "speaker_id",
+                    "min_clip_seconds",
+                    "max_clip_seconds",
+                    "merge_consecutive",
+                )
+                if field in validated
+            }
 
         if key == "diarization":
             if not isinstance(validated, dict):
@@ -102,20 +130,14 @@ class InputDataParser:
         # punctuation remains available for the splitter.
         normalized = clean_text(text, lowercase=lowercase, remove_stopwords=False)
         raw_sentences = split_sentences(normalized) if split_sentences_flag else []
-        cleaned = (
-            clean_text(normalized, remove_stopwords=True)
-            if remove_stopwords
-            else normalized
-        )
+        cleaned = clean_text(normalized, remove_stopwords=True) if remove_stopwords else normalized
         # A single sentence produced by split_sentences may exceed the
         # embedding model's context limit (e.g. a long therapist monologue).
         # Re-chunk any oversized sentence so every item in the batch fits.
         sentences: list[str] = []
         for sentence in raw_sentences:
             sentence_text = (
-                clean_text(sentence, remove_stopwords=True)
-                if remove_stopwords
-                else sentence
+                clean_text(sentence, remove_stopwords=True) if remove_stopwords else sentence
             )
             if not sentence_text:
                 continue
@@ -169,9 +191,7 @@ class InputDataParser:
         ctx = validated.get("context")
         schema = validated.get("schema")
         extras_raw = validated.get("prompt_extras")
-        extras: Mapping[str, Any] | None = (
-            extras_raw if isinstance(extras_raw, Mapping) else None
-        )
+        extras: Mapping[str, Any] | None = extras_raw if isinstance(extras_raw, Mapping) else None
         prompt = self.build_prompt(text=text, context=ctx, schema=schema, extras=extras)
 
         out: dict[str, Any] = {"prompt": prompt, "text": text}
@@ -257,12 +277,36 @@ class OutputDataParser:
             result = self._parse_llm(result, schema=schema)
         elif key == "diarization":
             result = self._parse_diarization(result)
+        elif key == "audio_emotion":
+            result = self._parse_audio_emotion(result)
         elif key == "text_embedder":
             packet.processed_data = self._parse_text_embedder(result)
             return packet
 
         packet.processed_data = self._normalize_processed(result)
         return packet
+
+    @staticmethod
+    def _parse_audio_emotion(result: Any) -> Any:
+        if not isinstance(result, Mapping):
+            raise ValidationError("audio_emotion output must be a mapping")
+        if "mean" in result or "per_segment" in result:
+            mean = result.get("mean")
+            if not isinstance(mean, Mapping) or any(
+                isinstance(mean.get(k), bool)
+                or not isinstance(mean.get(k), (int, float))
+                or not math.isfinite(mean[k])
+                for k in ("arousal", "dominance", "valence")
+            ):
+                raise ValidationError("audio_emotion mean must contain three finite ADV numbers")
+            if any(result.get(k) != mean[k] for k in ("arousal", "dominance", "valence")):
+                raise ValidationError("audio_emotion top-level ADV must match mean")
+            segments = result.get("per_segment")
+            if not isinstance(segments, list) or not all(
+                isinstance(item, Mapping) for item in segments
+            ):
+                raise ValidationError("audio_emotion per_segment must be a list of mappings")
+        return dict(result)
 
     def _parse_llm(self, result: Any, *, schema: Mapping[str, Any] | None) -> Any:
         """Branch for ``llm``: validate required fields and type coherence vs schema."""
@@ -319,9 +363,7 @@ class OutputDataParser:
         if isinstance(result, list):
             for index, item in enumerate(result):
                 if not isinstance(item, dict):
-                    raise ValidationError(
-                        f"text_embedder item at index {index} must be a mapping"
-                    )
+                    raise ValidationError(f"text_embedder item at index {index} must be a mapping")
             return {"artefatti": list(result)}
         raise ValidationError("text_embedder result must be a mapping or a list of mappings")
 

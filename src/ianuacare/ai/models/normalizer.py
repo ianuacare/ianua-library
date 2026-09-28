@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from ianuacare.ai._numeric import to_float
@@ -89,7 +90,9 @@ class ModelOutNormalizer:
 
     @staticmethod
     def _coerce_adv(raw: Any) -> dict[str, float] | None:
-        if isinstance(raw, dict):
+        if isinstance(raw, Mapping):
+            if isinstance(raw.get("scores"), Mapping):
+                return ModelOutNormalizer._coerce_adv(raw["scores"])
             arousal = raw.get("arousal")
             dominance = raw.get("dominance")
             valence = raw.get("valence")
