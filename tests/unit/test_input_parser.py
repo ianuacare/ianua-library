@@ -158,3 +158,31 @@ def test_parse_text_embedder_chunks_long_text() -> None:
 def test_parse_text_embedder_rejects_invalid_max_tokens() -> None:
     with pytest.raises(ValidationError):
         InputDataParser(max_tokens=0)
+
+
+def test_audio_emotion_input_whitelist():
+    from ianuacare.core.models.packet import DataPacket
+    from ianuacare.core.orchestration.parser import InputDataParser
+
+    payload = {
+        "audio_bytes": b"wav",
+        "segments": [],
+        "speaker_id": 1,
+        "min_clip_seconds": 1,
+        "max_clip_seconds": 200,
+        "merge_consecutive": True,
+    }
+    packet = DataPacket(validated_data={**payload, "unrelated": "ignored"})
+    assert InputDataParser().parse(packet, model_key="audio_emotion").parsed_data == payload
+
+
+def test_audio_emotion_invalid_input():
+    import pytest
+
+    from ianuacare.core.exceptions.errors import ValidationError
+    from ianuacare.core.models.packet import DataPacket
+    from ianuacare.core.orchestration.parser import InputDataParser
+
+    for value in [None, [], {"segments": None}]:
+        with pytest.raises(ValidationError):
+            InputDataParser().parse(DataPacket(validated_data=value), model_key="audio_emotion")

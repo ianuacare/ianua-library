@@ -148,3 +148,27 @@ def test_embed_text_requires_registered_model() -> None:
     orch = _build_orchestrator({})
     with pytest.raises(OrchestrationError):
         orch.embed_text("x", ctx)
+
+
+def test_audio_emotion_batch_output_parser():
+    import pytest
+
+    from ianuacare.core.exceptions.errors import ValidationError
+    from ianuacare.core.models.packet import DataPacket
+    from ianuacare.core.orchestration.parser import OutputDataParser
+
+    mean = {"arousal": 0.1, "dominance": 0.2, "valence": 0.3}
+    result = {**mean, "mean": mean, "per_segment": [{"scores": mean}]}
+    parser = OutputDataParser()
+    assert (
+        parser.parse(DataPacket(inference_result=result), model_key="audio_emotion").processed_data
+        == result
+    )
+    for bad in [
+        {**result, "mean": {}},
+        {**result, "per_segment": [1]},
+        {**result, "arousal": 0.9},
+        {"per_segment": []},
+    ]:
+        with pytest.raises(ValidationError):
+            parser.parse(DataPacket(inference_result=bad), model_key="audio_emotion")
