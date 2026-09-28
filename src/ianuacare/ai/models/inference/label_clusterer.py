@@ -191,6 +191,7 @@ class LabelClusterer(BaseAIModel):
         if n_samples < 2:
             return [[0.0] * n_components for _ in vectors], []
         try:
+            np = import_module("numpy")
             tsne_mod = import_module("sklearn.manifold")
             tsne_cls = getattr(tsne_mod, "TSNE")
         except ImportError as exc:
@@ -203,7 +204,9 @@ class LabelClusterer(BaseAIModel):
             random_state=self._random_state,
             init="pca",
         )
-        projected_nd = model.fit_transform(vectors)
+        # TSNE.fit_transform reads X.shape before converting input. A plain list
+        # raises AttributeError and the orchestrator wraps it as InferenceError.
+        projected_nd = model.fit_transform(np.asarray(vectors, dtype=float))
         projected = [
             [float(component) for component in row]
             for row in projected_nd.tolist()
