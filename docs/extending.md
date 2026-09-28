@@ -156,3 +156,9 @@ Use `CognitoRegistrationService.register()` then `confirm()` when `UserConfirmed
 
 - Treat `AuditService.log_event` as **operational** metadata: user id, product, event name, correlation ids.
 - For regulatory audit trails, combine this with immutable storage and access controls outside this library.
+
+For the standard `wavlm-emotion` contract, use `SelfHostedAudioEmotionProvider` with
+`AudioEmotionModel(provider, "wavlm-emotion", ModelOutNormalizer())`. Generic REST
+hooks remain supported for other services. Batch inference slices audio locally and
+passes `audio_bytes` to the provider; storage access belongs to `PipelineDatabase`.
+See [Audio emotion](audio-emotion.md) for options and the full contract.

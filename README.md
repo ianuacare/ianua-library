@@ -16,7 +16,7 @@ See the [`docs/`](docs/) folder:
 - [Architecture](docs/architecture.md)
 - [Getting started](docs/getting-started.md)
 - [Audio transcription and diarization](docs/audio-diarization.md) (new `ianuacare.ai.models.inference` flow, optional `[audio]` extra)
-- [Audio emotion (REST-hosted)](docs/audio-emotion.md) (`AudioEmotionModel`, `RestHostedModelProvider`)
+- [Audio emotion (REST-hosted)](docs/audio-emotion.md) (`AudioEmotionModel`, `SelfHostedAudioEmotionProvider`)
 - [Application integration flow](docs/application-integration-flow.md) (includes CRUD, audio, and vector DB flows)
 - [API reference](docs/api-reference.md)
 - [Preconfigurations](docs/preconfigurations.md)
@@ -46,7 +46,7 @@ The library now includes production-oriented adapters and a generic stack factor
 - `S3BucketClient` (AWS S3)
 - `TogetherAIProvider` (Together AI) — chat, embeddings; `LLMModel` supports construction-time generation params (`temperature`, `reasoning_effort`, `response_format`, …). See [docs/llm-generation-params.md](docs/llm-generation-params.md).
 - Speech pipeline (`ianuacare.ai.models.inference` + `ianuacare.ai.providers`): `DiarizationModel`, `Transcription`, `SpeechTranscriptionProvider`, `LLMModel` (requires **`[audio]`** extra)
-- Audio emotion (`AudioEmotionModel`, `RestHostedModelProvider`) — REST-hosted dimensional emotion (no extra dependency)
+- Audio emotion (`AudioEmotionModel`, `SelfHostedAudioEmotionProvider`) — self-hosted WavLM emotion; single clips need no extras, speaker batches use `[audio]`
 - `SelfHostedEmbeddingProvider` — text embeddings from your own REST endpoint; plugs straight into `TextEmbedder` (no extra dependency)
 - `RedisCacheClient` (Redis)
 - `KMSEncryptionService` (AWS KMS)

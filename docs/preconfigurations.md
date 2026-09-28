@@ -104,8 +104,8 @@ Full reference: [LLM generation parameters](llm-generation-params.md).
 
 ### :material-emoticon-happy-outline: Audio emotion (REST-hosted)
 
-- `AudioEmotionModel`, `RestHostedModelProvider`, `RestRequest`, `ModelOutNormalizer.normalize_audio_emotion`.
-- No dedicated pip extra; endpoint contract is defined in your app via `build_request` / `parse_response`.
+- `AudioEmotionModel`, `SelfHostedAudioEmotionProvider`, `ModelOutNormalizer.normalize_audio_emotion`. Use model alias `wavlm-emotion`; speaker batches need `[audio]` extras.
+- Single clips use stdlib HTTP without extras; speaker batches require `pip install -e ".[audio]"`. The provider implements the server JSON/base64 contract.
 - See [Audio emotion (REST-hosted models)](audio-emotion.md).
 
 ### :material-lightning-bolt-circle: Cache and encryption

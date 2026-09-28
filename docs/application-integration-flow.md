@@ -269,7 +269,7 @@ sequenceDiagram
 |---|---|---|
 | `"llm"` | `{"text": "Testo da elaborare..."}` | `{"text": "...", "key_points": [...]}` |
 | `"diarization"` | `{"audio_path": "/path/file.wav", "num_speakers": 2, "language": "it"}` | `{"raw_transcription": "...", "segments": [...], "speakers": [...]}` |
-| `"audio_emotion"` | `{"audio_path": "/path/file.wav"}` | `{"arousal": 0.54, "dominance": 0.61, "valence": 0.40}` |
+| `"audio_emotion"` | `audio_path` / `audio_bytes`; optional `segments` + `speaker_id` for batch | ADV; batch adds `mean`, `per_segment`, `speaker_id`, `segment_count`, `skipped` |
 | `"label_clusterer"` | `{"vectors": [[...], [...], ...], "label_clusters": {"my_label": ["anchor1", "anchor2"]}, "texts": ["...", ...]?, "point_ids": [...]?}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "projected_vectors": [...], "explained_variance_ratio": [...], "texts": [...], "point_ids": [...]}` |
 | `"ranked_label_clusterer"` | `{"vectors": [[...], ...], "label_clusters": {"my_label": ["anchor1"]}, "texts": ["...", ...]?, "point_ids": [...]?, "num_clusters": 8}` | `{"labels": [...], "assigned_labels": [...], "cluster_to_label": {...}, "ranked_clusters": [...], "texts": [...], "point_ids": [...]}` |
 | `"nlp"` (o altro) | Qualsiasi dizionario | Dipende dal provider configurato |
@@ -454,6 +454,7 @@ metadati su DB con chiavi S3 ricostruibili (`.../audio/...` per wav/mp3,
 | `"prepare_upload"` | `collection`, `filename` (audio: `.wav`/`.mp3`; text: `.txt`/`.md`) | Metadata + `upload_url` presigned PUT |
 | `"upload_direct"` | `collection`, `filename`, `content` (bytes/str) **oppure** `content_base64` | Upload oggetto + metadata DB |
 | `"retrieve"` | `collection`, `lookup_field`, `lookup_value` | Metadata record + `download_url` presigned GET |
+| `"retrieve_to_local"` | Same lookup fields; optional `local_path` | Metadata + absolute `audio_path`; caller must delete the file |
 
 ### Regole principali
 
@@ -644,3 +645,11 @@ flowchart LR
 | **Bucket S3** | Chiama `run_bucket(op, data, context, content_type=audio|text)` (o `run_audio` per solo audio) | Valida payload, salva metadata DB, upload/download presigned |
 | **Vector DB** | Chiama `run_vector(op, data, context)` | Valida payload vector, upsert/search/scroll/delete su vector client |
 | **Errori** | Cattura eccezioni e mappa a HTTP status | Alza eccezioni tipizzate |
+
+### Emotion after diarization
+
+Use `SelfHostedAudioEmotionProvider` and alias `wavlm-emotion`. Resolve local audio
+with `run_bucket("retrieve_to_local", ...)` and diarization with `run_crud("read_one", ...)`,
+then pass `{"audio_path": record["audio_path"], "segments": diarization["segments"],
+"speaker_id": 1}` to the `audio_emotion` model. Batch means use retained clip durations.
+The complete example and cleanup are in [Audio emotion](audio-emotion.md).

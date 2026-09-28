@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Speaker audio emotion**: self-hosted `wavlm-emotion` JSON/base64 provider with bounded 429 retries, lazy PCM16 WAV slicing, speaker filtering and duration-weighted ADV batches. Parsers preserve batch details; single-clip providers remain compatible.
+- **Local storage reads**: `retrieve_to_local` downloads bucket bytes into a unique temporary or explicit new file, returning metadata plus `audio_path`. Applications own cleanup. See [Audio emotion](docs/audio-emotion.md).
+
 - **Self-hosted embeddings**: `SelfHostedEmbeddingProvider` (`ianuacare.ai.providers`) embeds text through your own REST endpoint (`{"model": ..., "payload": {"texts": [...]}}` in, `embeddings` out). Batches long inputs preserving order, and takes `input_type` / `instruction` / `dimensions` as constructor defaults overridable per call via `params`. Usable directly as the `TextEmbedder` provider. Documentation: [Preconfigurations](docs/preconfigurations.md).
 - **Vector upsert**: `DataValidator` now accepts `vector_field: "chunks"` on `run_vector("upsert", ...)` (aligned with `Writer.write_vector_upsert` and `Reader.read_vector_search`); one Qdrant point per chunk with id `{id_artefatto_trascrizione}:chunks:{index}`.
 - **Audio emotion (REST-hosted)**: `RestHostedModelProvider` and `RestRequest` (`ianuacare.ai.providers`) with injectable `build_request`, `parse_response`, and `post_fn` (default stdlib HTTP). `AudioEmotionModel` (`ianuacare.ai.models.inference`) extends `NLPModel` and normalizes arousal/dominance/valence via `ModelOutNormalizer.normalize_audio_emotion`. Documentation: [Audio emotion](docs/audio-emotion.md).

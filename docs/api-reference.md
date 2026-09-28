@@ -157,7 +157,7 @@ Module path: `ianuacare.core.pipeline`
 ### `DataValidator`
 
 - `validate(packet: DataPacket) -> DataPacket` — sets `validated_data`; raises `ValidationError` if `raw_data` is missing (unless `allow_none_raw=True`).
-- `validate_bucket_payload(value, *, content_type, operation)` — for bucket flows (`audio` / `text`): `prepare_upload`, `upload_direct`, `retrieve`.
+- `validate_bucket_payload(value, *, content_type, operation)` — for bucket flows (`audio` / `text`): `prepare_upload`, `upload_direct`, `retrieve`, `retrieve_to_local`.
 
 ### `Pipeline`
 
@@ -188,7 +188,7 @@ Compatibility facade composing `PipelineModel` (inference) and `PipelineDatabase
   - `upsert`: `vector_field` is required (`text`, `chunks`, `sentence`, `words`); `text` stores one point per artefact, the other levels store one point per list element
   - `search`: `filters.level` is required (`text`, `chunks`, `sentence`, `words`)
   - `scroll`: lists all points in the collection (paginated internally); optional `filters` for exact-match payload fields; with `QdrantDatabaseClient`, uses the official client's `scroll` API until all pages are consumed
-- `run_bucket(operation, input_data, context, *, content_type: "audio" | "text", bucket_name: str | None = None) -> DataPacket` — object storage + DB metadata for **audio** (`.wav` / `.mp3`) or **text** (`.txt` / `.md`). Operations: `prepare_upload`, `upload_direct`, `retrieve`. Audit events: `pipeline_bucket_started` / `pipeline_bucket_completed` (with `content_type` in details). If `bucket_name` is set, it is stored on `packet.metadata["bucket_name"]` for custom routing.
+- `run_bucket(operation, input_data, context, *, content_type: "audio" | "text", bucket_name: str | None = None) -> DataPacket` — object storage + DB metadata for **audio** (`.wav` / `.mp3`) or **text** (`.txt` / `.md`). Operations: `prepare_upload`, `upload_direct`, `retrieve`, `retrieve_to_local`. Audit events: `pipeline_bucket_started` / `pipeline_bucket_completed` (with `content_type` in details). If `bucket_name` is set, it is stored on `packet.metadata["bucket_name"]` for custom routing.
 
 ### `StorageInputParser` / `StorageOutputParser`
 
@@ -242,7 +242,7 @@ Module paths: `ianuacare.ai`, `ianuacare.ai.models`, `ianuacare.ai.providers`, `
 - `BaseAIModel.run(payload: Any) -> Any` — abstract entry point.
 - `NLPModel(provider, model_name)` — base NLP model delegating to provider.
 - `Transcription.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_transcript`.
-- `AudioEmotionModel.run(payload) -> dict` — `infer(...)` + `ModelOutNormalizer.normalize_audio_emotion` (arousal, dominance, valence).
+- `AudioEmotionModel(provider, model_name, normalizer, *, min_clip_seconds=1.0, max_clip_seconds=300.0, merge_consecutive=False)` — single-clip ADV or duration-weighted batch for `segments` + `speaker_id`. See [Audio emotion](audio-emotion.md).
 - `LLMModel(provider, model_name, normalizer, *, temperature=0.7, top_p=1.0, top_k=None, max_tokens=None, stop=None, seed=None, frequency_penalty=None, presence_penalty=None, repetition_penalty=None, reasoning_effort=None, reasoning_enabled=None, response_format=None, extra=None)` — construction-time generation parameters; only non-`None` values are forwarded as `params` to the provider. Set `temperature=None` / `top_p=None` to omit built-in defaults. Property `params` returns a read-only copy. See [LLM generation parameters](llm-generation-params.md).
 - `LLMModel.run(payload) -> dict` — `infer(..., params=self._params)` + `ModelOutNormalizer.normalize_summary`.
 - `LLMModel.stream(payload) -> Iterator[str]` — text fragments from `AIProvider.infer_stream(..., params=self._params)`.
@@ -427,3 +427,9 @@ Module path: `ianuacare.presets`
 - Factory that wires `AuthService`, `Writer`, `Reader`, `Orchestrator`, and `Pipeline` from injected adapters.
 - Accepts optional `vector_database: VectorDatabaseClient | None` and injects it into both `Writer` and `Reader`.
 - Returned `IanuacareStack` exposes `pipeline` (compat facade), `pipeline_model` (`PipelineModel`), and `pipeline_database` (`PipelineDatabase`) for direct access; the database pipeline is wired with `embed_text_fn=orchestrator.embed_text` so vector search by `prompt` keeps working.
+
+## Self-hosted audio emotion and local downloads
+
+- `SelfHostedAudioEmotionProvider(endpoint_url, *, api_key=None, timeout_seconds=600.0, max_retries=2, post_fn=None, sleep_fn=None)` — JSON/base64 `wavlm-emotion` adapter; retries only 429 using `Retry-After`. Exported at provider, AI and package root levels.
+- `Reader.read_bucket_to_local(collection, *, lookup_field, lookup_value, context, local_path=None)` — metadata plus absolute `audio_path`, or `None`. Downloads bytes; unique temporary destination by default, explicit paths must not exist. Caller owns cleanup.
+- `InputDataParser` forwards audio sources and batch options for `audio_emotion`; `OutputDataParser` validates batch mean and per-segment structure.

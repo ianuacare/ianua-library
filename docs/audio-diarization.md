@@ -199,4 +199,4 @@ Application code should map these exceptions to stable API error codes.
 
 ## Related
 
-- [Audio emotion (REST-hosted models)](audio-emotion.md) — dimensional emotion (arousal, dominance, valence) via `RestHostedModelProvider` and `AudioEmotionModel`.
+- [Audio emotion (REST-hosted models)](audio-emotion.md) — dimensional emotion (arousal, dominance, valence) via `SelfHostedAudioEmotionProvider` and `AudioEmotionModel`; pass diarized `segments`, local audio and `speaker_id` for duration-weighted batch scores.
