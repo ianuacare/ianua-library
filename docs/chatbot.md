@@ -1,5 +1,9 @@
 # RAG Chatbot (`ianuacare.core.chatbot`)
 
+For a conversational agent with local/MCP tools and no mandatory retrieval,
+see [Agent and MCP](agent.md). Both reuse `ConversationMemory`; vector pooling
+and reranking remain specific to this chatbot.
+
 Optional orchestration for **retrieval-augmented** chat: vector search via `Reader`, generation via `LLMModel`, persistence of a **non-sensitive** audit line via `Writer.write_log`, and **session state** (role-based history, rolling summary, pooled vector hits with cross-turn reranking).
 
 Chatbot types are **not** re-exported from the top-level `ianuacare` package. Import explicitly:
