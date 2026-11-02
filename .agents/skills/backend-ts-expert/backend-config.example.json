@@ -1,0 +1,18 @@
+{
+  "framework": "fastify",
+  "orm": "drizzle",
+  "test_runner": "vitest",
+  "runtime": "node",
+  "strict_mode": true,
+  "src_path": "src",
+  "test_path": "tests",
+  "validation_library": "zod",
+  "logger": "pino",
+  "package_manager": "pnpm",
+  "api_style": "rest",
+  "auth_strategy": "jwt",
+  "database": "postgresql",
+  "cache": "redis",
+  "queue": "bullmq",
+  "monorepo": false
+}

@@ -1,0 +1,7 @@
+{
+  "product_name": "My Product",
+  "default_framework": "RICE",
+  "docs_path": "docs/specs/product",
+  "decision_prefix": "DEC",
+  "prd_prefix": "PRD"
+}

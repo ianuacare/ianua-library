@@ -1,0 +1,21 @@
+{
+  "docs_path": "docs/specs/e2e",
+  "scenario_prefix": "E2E",
+  "suite_prefix": "SUITE",
+  "report_prefix": "RPT",
+  "decision_prefix": "E2ED",
+  "product_specs_path": "docs/specs/product",
+  "ux_specs_path": "docs/specs/ux",
+  "frontend_specs_path": "docs/specs/frontend",
+  "screenshots_path": "docs/specs/e2e/screenshots",
+  "default_viewport": { "width": 1280, "height": 720 },
+  "additional_viewports": [
+    { "name": "mobile", "width": 375, "height": 812 },
+    { "name": "tablet", "width": 768, "height": 1024 }
+  ],
+  "default_automation": null,
+  "playwright_vendor_path": "vendor/anthropic-skills/skills/webapp-testing",
+  "a11y_checks_enabled": true,
+  "server_start_command": null,
+  "server_port": null
+}
