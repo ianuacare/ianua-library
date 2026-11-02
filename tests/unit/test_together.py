@@ -1,11 +1,40 @@
 """Together provider."""
 
+import asyncio
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import ianuacare.ai.providers.together as together_module
+from ianuacare.ai.models.inference.LLM import LLMModel
+from ianuacare.ai.models.normalizer import ModelOutNormalizer
 from ianuacare.ai.providers.together import TogetherAIProvider
+
+
+def test_tool_call_round_trip_preserves_ids_arguments_and_empty_content() -> None:
+    provider, client = _chat_provider()
+    tool_call = {
+        "id": "call-1", "type": "function",
+        "function": {"name": "read", "arguments": '{"key":"x"}'},
+    }
+    response = MagicMock()
+    response.choices = [SimpleNamespace(
+        message=SimpleNamespace(
+            content=None, reasoning="private reasoning",
+            tool_calls=[SimpleNamespace(model_dump=lambda: tool_call)],
+        ),
+        finish_reason="tool_calls",
+    )]
+    response.model_dump.return_value = {}
+    client.chat.completions.create.return_value = response
+    llm = LLMModel(provider, "test", ModelOutNormalizer())
+    tools = [{"type": "function", "function": {"name": "read", "parameters": {}}}]
+    result = asyncio.run(llm.achat([{"role": "user", "content": "Read x"}], tools=tools))
+    assert result == {"content": "", "tool_calls": [tool_call], "finish_reason": "tool_calls"}
+    kwargs = client.chat.completions.create.call_args.kwargs
+    assert kwargs["tools"] == tools
+    assert kwargs["tool_choice"] == "auto"
 
 
 def test_together_infer() -> None:
