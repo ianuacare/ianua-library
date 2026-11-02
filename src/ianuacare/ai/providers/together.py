@@ -33,6 +33,8 @@ _PASS_THROUGH_PARAMS: tuple[str, ...] = (
     "repetition_penalty",
     "response_format",
     "reasoning_effort",
+    "tools",
+    "tool_choice",
 )
 
 
@@ -60,6 +62,8 @@ def _to_together_kwargs(params: dict[str, Any] | None) -> dict[str, Any]:
 
 class TogetherAIProvider(AIProvider):
     """Provider backed by Together chat completions and embeddings."""
+
+    supports_tools = True
 
     def __init__(
         self,
@@ -137,6 +141,10 @@ class TogetherAIProvider(AIProvider):
             "model": selected_model,
             "text": text,
             "content": message.content,
+            "tool_calls": [
+                call.model_dump() for call in (getattr(message, "tool_calls", None) or [])
+            ],
+            "finish_reason": getattr(choice, "finish_reason", None),
             "raw": response.model_dump(),
         }
 

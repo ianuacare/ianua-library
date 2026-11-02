@@ -10,7 +10,7 @@ dist/
 build/
 
 # Editor / IDE
-
+.agents/
 
 # Tools
 .mypy_cache/

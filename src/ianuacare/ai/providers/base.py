@@ -11,6 +11,8 @@ from typing import Any
 class AIProvider(ABC):
     """Common contract for provider-side inference."""
 
+    supports_tools: bool = False
+
     @abstractmethod
     def infer(
         self,

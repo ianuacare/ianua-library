@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from ianuacare.ai.models.inference.LLM import LLMModel
-from ianuacare.core.chatbot.message import Message, RetrievedPoint
+from ianuacare.core.chatbot.message import ConversationMemory, RetrievedPoint
 from ianuacare.core.exceptions.errors import ValidationError
 from ianuacare.core.models.context import RequestContext
 from ianuacare.infrastructure.storage.reader import Reader
@@ -64,26 +64,12 @@ async def _aretry_awaitable(
     raise RuntimeError("_aretry_awaitable: unreachable")
 
 
-class ConversationState:
+class ConversationState(ConversationMemory):
     """Mutable session state: messages, rolling summary, and pooled vector hits."""
 
-    __slots__ = ("context", "summary", "retrieved_pool", "turn_index")
-
     def __init__(self, *, system_prompt: str | None = None) -> None:
-        self.summary: str = ""
+        super().__init__(system_prompt=system_prompt)
         self.retrieved_pool: list[RetrievedPoint] = []
-        self.turn_index: int = 0
-        self.context: list[Message] = []
-        if system_prompt:
-            self.context.append(Message(role="system", content=system_prompt))
-
-    def total_chars(self) -> int:
-        return sum(len(m.content) for m in self.context)
-
-    def append_turn(self, user_content: str, assistant_content: str) -> None:
-        self.context.append(Message(role="user", content=user_content))
-        self.context.append(Message(role="assistant", content=assistant_content))
-        self.turn_index += 1
 
     @staticmethod
     def _effective_score(point: RetrievedPoint, current_turn: int, score_decay: float) -> float:
@@ -98,7 +84,10 @@ class ConversationState:
         score_decay: float,
     ) -> list[RetrievedPoint]:
         """Combine fresh vector hits with the pooled history and rank by relevance + decay."""
-        new_points = [RetrievedPoint.from_vector_hit(h, current_turn) for h in new_hits]
+        new_points = list({
+            point.id: point
+            for point in (RetrievedPoint.from_vector_hit(h, current_turn) for h in new_hits)
+        }.values())
         new_ids = {p.id for p in new_points}
         candidates: list[RetrievedPoint] = list(new_points)
         for old in self.retrieved_pool:
@@ -109,6 +98,14 @@ class ConversationState:
             reverse=True,
         )
         return candidates[:rerank_top_k]
+
+    def merge_hits(self, hits: list[dict[str, Any]], turn: int) -> None:
+        """Refresh previously seen points without duplicating their identifiers."""
+        by_id = {point.id: point for point in self.retrieved_pool}
+        for hit in hits:
+            point = RetrievedPoint.from_vector_hit(hit, turn)
+            by_id[point.id] = point
+        self.retrieved_pool = list(by_id.values())
 
     def prune_pool(
         self,
@@ -294,29 +291,17 @@ class Chatbot:
         return messages
 
     def _merge_new_hits_into_pool(self, new_hits_raw: list[dict[str, Any]], turn: int) -> None:
-        new_points = [RetrievedPoint.from_vector_hit(h, turn) for h in new_hits_raw]
-        by_id: dict[str, RetrievedPoint] = {p.id: p for p in self.state.retrieved_pool}
-        for p in new_points:
-            by_id[p.id] = p
-        self.state.retrieved_pool = list(by_id.values())
+        self.state.merge_hits(new_hits_raw, turn)
 
     def _maybe_summarize(self) -> None:
         if self.state.total_chars() <= self._max_context_chars:
             return
-        summary_payload: dict[str, Any] = {
-            "task": "summarize",
-            "previous_summary": self.state.summary,
-            "history": [{"role": m.role, "content": m.content} for m in self.state.context],
-        }
         out = _retry(
-            lambda: self._llm.run(summary_payload),
+            lambda: self._llm.run(self.state.summary_payload()),
             max_retries=self._max_retries,
             retry_base_delay=self._retry_base_delay,
         )
-        self.state.summary = str(out.get("text") or "").strip()
-        self.state.context = []
-        if self._system_prompt:
-            self.state.context.append(Message(role="system", content=self._system_prompt))
+        self.state.replace_with_summary(str(out.get("text") or "").strip())
 
     def _finalize_success(
         self,
