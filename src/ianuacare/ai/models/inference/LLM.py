@@ -108,6 +108,29 @@ class LLMModel(NLPModel):
         )
         return self._normalizer.normalize_summary(raw)
 
+    async def achat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        tools: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Return content, tool calls and finish reason without summary normalization.
+
+        Tool-capable providers return these keys from ``ainfer``. ``content`` may
+        be null when the assistant only requests tools; reasoning is not an answer.
+        """
+        if not self._provider.supports_tools:
+            raise NotImplementedError("This provider does not support tool calling")
+        params = dict(self._params)
+        if tools:
+            params.update(tools=tools, tool_choice="auto")
+        raw = await self._provider.ainfer(self._model_name, messages, params=params)
+        return {
+            "content": raw.get("content") or "",
+            "tool_calls": raw.get("tool_calls") or [],
+            "finish_reason": raw.get("finish_reason"),
+        }
+
     async def astream(self, payload: Any) -> AsyncIterator[str]:
         body, model_type = _payload_without_model_type(payload)
         async for chunk in self._provider.ainfer_stream(
