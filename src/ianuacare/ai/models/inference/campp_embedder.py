@@ -106,6 +106,11 @@ class CamPlusPlusEmbedder(BaseAIModel):
         return session
 
     # ----------------------------------------------------------------- waveforms
+    def clear_cache(self) -> None:
+        """Drop cached waveforms. ``DiarizationModel`` calls it at the end of each run,
+        so a long-lived embedder does not keep the last file's audio in memory."""
+        self._waveform_cache.clear()
+
     def _load_waveform(self, audio_path: str) -> tuple[Any, int]:
         cached = self._waveform_cache.get(audio_path)
         if cached is not None:
@@ -122,6 +127,8 @@ class CamPlusPlusEmbedder(BaseAIModel):
         except Exception as exc:
             raise InferenceError(f"failed to load audio file: {audio_path}") from exc
         loaded = (y, int(sr))
+        # Keep at most one waveform: the cache only serves the segments of one file.
+        self._waveform_cache.clear()
         self._waveform_cache[audio_path] = loaded
         return loaded
 

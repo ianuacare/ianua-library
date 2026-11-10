@@ -102,3 +102,116 @@ def test_short_segment_returns_empty(tmp_path) -> None:
         )
 
     assert vectors == [[]]
+
+
+def _diarization(embedder: CamPlusPlusEmbedder, clusterer: Any = None) -> Any:
+    from ianuacare.ai.models.inference.diarization import DiarizationModel
+    from ianuacare.ai.models.inference.transcription import Transcription
+    from ianuacare.ai.models.normalizer import ModelOutNormalizer
+    from ianuacare.ai.providers.callable import CallableProvider
+
+    provider = CallableProvider(
+        infer_fn=lambda model_name, payload: {
+            "text": "uno due",
+            "segments": [
+                {"start": 0.0, "end": 2.0, "text": "uno"},
+                {"start": 2.5, "end": 4.5, "text": "due"},
+            ],
+        }
+    )
+    transcription = Transcription(
+        provider=provider, model_name="asr", normalizer=ModelOutNormalizer()
+    )
+    kwargs: dict[str, Any] = {"use_spectral_split": False}
+    if clusterer is not None:
+        kwargs["clusterer"] = clusterer
+    return DiarizationModel(transcription=transcription, embedder=embedder, **kwargs)
+
+
+def test_load_waveform_keeps_only_the_latest_file(tmp_path) -> None:
+    model = tmp_path / "campp.onnx"
+    model.write_bytes(b"stub")
+    sr = 16_000
+    y = np.zeros(sr * 2, dtype=np.float32)
+    embedder = CamPlusPlusEmbedder(model_path=str(model))
+
+    with patch(
+        "ianuacare.ai.models.inference.campp_embedder.import_module",
+        side_effect=_mock_modules(y, sr),
+    ):
+        embedder.run({"audio_path": "/fake/a.wav", "start": 0.0, "end": 1.0})
+        embedder.run({"audio_path": "/fake/b.wav", "start": 0.0, "end": 1.0})
+
+    assert list(embedder._waveform_cache) == ["/fake/b.wav"]
+    embedder.clear_cache()
+    assert embedder._waveform_cache == {}
+
+
+def test_diarization_clears_campp_cache_after_run(tmp_path) -> None:
+    model = tmp_path / "campp.onnx"
+    model.write_bytes(b"stub")
+    sr = 16_000
+    y = np.random.default_rng(0).standard_normal(sr * 5).astype(np.float32)
+    embedder = CamPlusPlusEmbedder(model_path=str(model))
+    loaded: list[str] = []
+    original_load = embedder._load_waveform
+
+    def _spy(path: str) -> Any:
+        result = original_load(path)
+        loaded.append(path)
+        return result
+
+    with (
+        patch(
+            "ianuacare.ai.models.inference.campp_embedder.import_module",
+            side_effect=_mock_modules(y, sr),
+        ),
+        patch.object(embedder, "_load_waveform", side_effect=_spy),
+    ):
+        out = _diarization(embedder).run({"audio_path": "/fake/meeting.wav"})
+
+    assert loaded == ["/fake/meeting.wav"]  # the cache was really populated
+    assert out["segments"]
+    assert embedder._waveform_cache == {}
+
+
+def test_diarization_clears_campp_cache_when_embedding_fails(tmp_path) -> None:
+    model = tmp_path / "campp.onnx"
+    model.write_bytes(b"stub")
+    sr = 16_000
+    y = np.random.default_rng(0).standard_normal(sr * 5).astype(np.float32)
+    resolve = _mock_modules(y, sr)
+    resolve("onnxruntime").InferenceSession.return_value.run.side_effect = RuntimeError("boom")
+    embedder = CamPlusPlusEmbedder(model_path=str(model))
+
+    with (
+        patch(
+            "ianuacare.ai.models.inference.campp_embedder.import_module",
+            side_effect=resolve,
+        ),
+        pytest.raises(InferenceError, match="CAM\\+\\+ inference failed"),
+    ):
+        _diarization(embedder).run({"audio_path": "/fake/meeting.wav"})
+
+    assert embedder._waveform_cache == {}
+
+
+def test_diarization_clears_campp_cache_when_clustering_fails(tmp_path) -> None:
+    model = tmp_path / "campp.onnx"
+    model.write_bytes(b"stub")
+    sr = 16_000
+    y = np.random.default_rng(0).standard_normal(sr * 5).astype(np.float32)
+    embedder = CamPlusPlusEmbedder(model_path=str(model))
+    clusterer = MagicMock()
+    clusterer.run.side_effect = RuntimeError("clusterer down")
+
+    with (
+        patch(
+            "ianuacare.ai.models.inference.campp_embedder.import_module",
+            side_effect=_mock_modules(y, sr),
+        ),
+        pytest.raises(RuntimeError, match="clusterer down"),
+    ):
+        _diarization(embedder, clusterer=clusterer).run({"audio_path": "/fake/meeting.wav"})
+
+    assert embedder._waveform_cache == {}
