@@ -66,10 +66,18 @@ class SpeakerEmbedder(BaseAIModel):
         end = to_float(payload.get("end"), start)
         return self._embed_excerpt(audio_path.strip(), start, end)
 
+    def clear_cache(self) -> None:
+        """Drop cached waveforms. ``DiarizationModel`` calls it at the end of each run,
+        so a long-lived embedder does not keep the last file's audio in memory."""
+        self._waveform_cache.clear()
+
     def _load_waveform(self, audio_path: str) -> tuple[Any, int]:
         cached = self._waveform_cache.get(audio_path)
         if cached is not None:
             return cached
+        # Single-entry cache: drop the previous file before decoding a new one,
+        # so two waveforms are never held at the same time.
+        self._waveform_cache.clear()
 
         try:
             librosa = import_module("librosa")

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Large audio transcription memory**: `SpeechTranscriptionProvider` no longer decodes the whole file to split uploads above 25 MB. PCM/lossless containers (WAV, WAVEX, FLAC, AIFF) are streamed into mono PCM_16 WAV chunks at the source sample rate; every other format (MP3, OGG, M4A...) is first transcoded on disk by `ffmpeg` to 16 kHz mono PCM WAV, so a lossy file can no longer fail mid-decode after some chunks were already sent; without `ffmpeg` it falls back to the previous in-memory decode and logs a warning. Chunks stay under the 24 MB byte budget and are now also capped at 1200 s (relevant below 16 kHz). Offsets and result shape (`text`, `segments`, `words`) are unchanged; a 2-hour 16 kHz WAV now peaks at ~2 MiB of Python allocations instead of ~1.3 GiB. New constructor argument `ffmpeg_timeout_seconds` (default `900`): if `ffmpeg` times out or cannot decode the file, the partial output is removed and a `ValueError` is raised.
+- **Speaker embedding cache**: `CamPlusPlusEmbedder` and `SpeakerEmbedder` expose `clear_cache()` and keep at most one decoded waveform (the previous one is dropped before decoding a new file). `DiarizationModel.run` clears the embedder cache when it finishes, also on error, so a long-lived worker no longer retains the audio of past meetings.
+
 - **Speaker audio emotion**: self-hosted `wavlm-emotion` JSON/base64 provider with bounded 429 retries, lazy PCM16 WAV slicing, speaker filtering and duration-weighted ADV batches. Parsers preserve batch details; single-clip providers remain compatible.
 - **Local storage reads**: `retrieve_to_local` downloads bucket bytes into a unique temporary or explicit new file, returning metadata plus `audio_path`. Applications own cleanup. See [Audio emotion](docs/audio-emotion.md).
 

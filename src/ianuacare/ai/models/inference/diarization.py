@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-_LOG = logging.getLogger(__name__)
-
 from ianuacare.ai._numeric import to_float
 from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.ai.models.inference.campp_embedder import CamPlusPlusEmbedder
@@ -28,6 +26,8 @@ from ianuacare.ai.parsers.spectral_segmenter import (
     _DEFAULT_THRESHOLD,
     detect_spectral_boundaries,
 )
+
+_LOG = logging.getLogger(__name__)
 
 
 def _align_labels(labels: list[int], n: int) -> list[int]:
@@ -79,6 +79,16 @@ class DiarizationModel(BaseAIModel):
         self._merge_max_gap_seconds = merge_max_gap_seconds
 
     def run(self, payload: Any) -> dict[str, Any]:
+        try:
+            return self._diarize(payload)
+        finally:
+            # Embedders cache the decoded waveform to embed many segments of one
+            # file; release it so a long-lived model does not pin audio in RAM.
+            clear_cache = getattr(self._embedder, "clear_cache", None)
+            if callable(clear_cache):
+                clear_cache()
+
+    def _diarize(self, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {"raw_transcription": "", "segments": [], "speakers": []}
 
