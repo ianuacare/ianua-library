@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Large audio transcription memory**: `SpeechTranscriptionProvider` no longer decodes the whole file to split uploads above 25 MB. Files readable by libsndfile (WAV, FLAC, OGG, MP3 with libsndfile ≥ 1.1) are streamed into mono PCM_16 WAV chunks at the source sample rate; other formats are first transcoded on disk by `ffmpeg` to 16 kHz mono PCM WAV; without `ffmpeg` it falls back to the previous in-memory decode and logs a warning. Chunk count, offsets and result shape (`text`, `segments`, `words`) are unchanged; a 2-hour 16 kHz WAV now peaks at ~2 MiB of Python allocations instead of ~1.3 GiB. If `ffmpeg` is present but cannot decode the file, a `ValueError` is raised.
+- **Speaker embedding cache**: `CamPlusPlusEmbedder` and `SpeakerEmbedder` expose `clear_cache()` and keep at most one decoded waveform. `DiarizationModel.run` clears the embedder cache when it finishes, also on error, so a long-lived worker no longer retains the audio of past meetings.
+
 - **Speaker audio emotion**: self-hosted `wavlm-emotion` JSON/base64 provider with bounded 429 retries, lazy PCM16 WAV slicing, speaker filtering and duration-weighted ADV batches. Parsers preserve batch details; single-clip providers remain compatible.
 - **Local storage reads**: `retrieve_to_local` downloads bucket bytes into a unique temporary or explicit new file, returning metadata plus `audio_path`. Applications own cleanup. See [Audio emotion](docs/audio-emotion.md).
 

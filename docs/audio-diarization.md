@@ -180,6 +180,7 @@ print(summary["text"])
 - Long ASR segments are split at spectral change-points before embedding; text is assigned proportionally by word count.
 - For conversations with rapid turn-taking, keep `merge_transcript_gaps` at `false` and tune `spectral_threshold` down (e.g. `0.25`).
 - Pass `--no-spectral-split` to use uniform time chunking only.
+- For long recordings, send 16 kHz mono PCM WAV. Uploads above 25 MB are split by streaming from disk; formats libsndfile cannot read (for example `m4a`) need `ffmpeg` on the worker, otherwise the whole file is decoded in memory. Spectral splitting and speaker embedding still decode the whole file at 16 kHz (about 230 MB per hour of audio), released at the end of each `DiarizationModel.run`.
 
 ## Error model
 
