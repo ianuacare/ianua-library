@@ -128,20 +128,29 @@ def _diarization(embedder: CamPlusPlusEmbedder, clusterer: Any = None) -> Any:
     return DiarizationModel(transcription=transcription, embedder=embedder, **kwargs)
 
 
-def test_load_waveform_keeps_only_the_latest_file(tmp_path) -> None:
+def test_load_waveform_drops_previous_file_before_decoding_the_next(tmp_path) -> None:
     model = tmp_path / "campp.onnx"
     model.write_bytes(b"stub")
     sr = 16_000
     y = np.zeros(sr * 2, dtype=np.float32)
     embedder = CamPlusPlusEmbedder(model_path=str(model))
+    resolve = _mock_modules(y, sr)
+    cached_at_load: list[int] = []
+
+    def _load(*args: Any, **kwargs: Any) -> Any:
+        cached_at_load.append(len(embedder._waveform_cache))
+        return (y, sr)
+
+    resolve("librosa").load.side_effect = _load
 
     with patch(
-        "ianuacare.ai.models.inference.campp_embedder.import_module",
-        side_effect=_mock_modules(y, sr),
+        "ianuacare.ai.models.inference.campp_embedder.import_module", side_effect=resolve
     ):
         embedder.run({"audio_path": "/fake/a.wav", "start": 0.0, "end": 1.0})
+        embedder.run({"audio_path": "/fake/a.wav", "start": 0.0, "end": 1.0})  # cache hit
         embedder.run({"audio_path": "/fake/b.wav", "start": 0.0, "end": 1.0})
 
+    assert cached_at_load == [0, 0]  # never two waveforms in memory at once
     assert list(embedder._waveform_cache) == ["/fake/b.wav"]
     embedder.clear_cache()
     assert embedder._waveform_cache == {}

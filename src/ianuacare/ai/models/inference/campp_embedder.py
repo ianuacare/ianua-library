@@ -115,6 +115,9 @@ class CamPlusPlusEmbedder(BaseAIModel):
         cached = self._waveform_cache.get(audio_path)
         if cached is not None:
             return cached
+        # Single-entry cache: drop the previous file before decoding a new one,
+        # so two waveforms are never held at the same time.
+        self._waveform_cache.clear()
         try:
             librosa = import_module("librosa")
         except ImportError as exc:
@@ -127,8 +130,6 @@ class CamPlusPlusEmbedder(BaseAIModel):
         except Exception as exc:
             raise InferenceError(f"failed to load audio file: {audio_path}") from exc
         loaded = (y, int(sr))
-        # Keep at most one waveform: the cache only serves the segments of one file.
-        self._waveform_cache.clear()
         self._waveform_cache[audio_path] = loaded
         return loaded
 
