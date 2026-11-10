@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
+import subprocess
 import tempfile
+from collections.abc import Iterator
+from importlib import import_module
 from typing import Any
 
 from ianuacare.ai._numeric import to_float
@@ -12,6 +17,13 @@ from ianuacare.ai.providers.base import AIProvider
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _SAFE_CHUNK_BYTES = 24 * 1024 * 1024
 _WAV_HEADER_MARGIN = 4096
+# Frames read from the source per I/O call while streaming a chunk to disk.
+# Bounds memory independently of file length, sample rate and channel count.
+_READ_BLOCK_FRAMES = 1 << 18
+# Format used when ffmpeg normalizes inputs libsndfile cannot decode (mp3, m4a...).
+_FFMPEG_SAMPLE_RATE = 16_000
+
+_LOG = logging.getLogger(__name__)
 
 # Providers that speak the OpenAI Chat/Audio wire format and can be reached
 # with the official `openai` Python SDK by overriding `base_url`.
@@ -39,7 +51,9 @@ class SpeechTranscriptionProvider(AIProvider):
         self._temperature = temperature
 
     @staticmethod
-    def _build_client(provider: str, api_key: str | None, base_url: str | None = None) -> Any | None:
+    def _build_client(
+        provider: str, api_key: str | None, base_url: str | None = None
+    ) -> Any | None:
         selected = str(provider or "").strip().lower() or "openai"
         if selected not in _OPENAI_COMPATIBLE_PROVIDERS:
             return None
@@ -63,6 +77,8 @@ class SpeechTranscriptionProvider(AIProvider):
 
     @staticmethod
     def _max_samples_per_wav_chunk() -> int:
+        """Frames per chunk WAV. Chunks are always mono PCM_16 (2 bytes per frame),
+        so the budget does not depend on the source sample rate or channel count."""
         byte_budget = _SAFE_CHUNK_BYTES - _WAV_HEADER_MARGIN
         return max(1000, byte_budget // 2)
 
@@ -200,29 +216,16 @@ class SpeechTranscriptionProvider(AIProvider):
         timestamp_granularities: list[str] | None = None,
         temperature: float | None = None,
     ) -> dict[str, Any]:
-        import librosa
-        import soundfile as sf
-
         assert self._client is not None
-        y, sr = librosa.load(audio_path, sr=None, mono=True)
-        total = int(len(y))
-        if total == 0:
-            return {"text": "", "segments": []}
-
-        max_samples = self._max_samples_per_wav_chunk()
         text_parts: list[str] = []
         merged_segments: list[dict[str, Any]] = []
         merged_words: list[dict[str, Any]] = []
+        chunk_count = 0
 
         with tempfile.TemporaryDirectory(prefix="ianuacare-whisper-") as tmp_dir:
-            start = 0
-            while start < total:
-                end = min(start + max_samples, total)
-                chunk = y[start:end]
-                chunk_offset_seconds = float(start) / float(sr)
-                tmp_path = os.path.join(tmp_dir, f"chunk_{start}_{end}.wav")
-                sf.write(tmp_path, chunk, int(sr), subtype="PCM_16")
-                with open(tmp_path, "rb") as f:
+            for chunk_path, chunk_offset_seconds in self._iter_wav_chunks(audio_path, tmp_dir):
+                chunk_count += 1
+                with open(chunk_path, "rb") as f:
                     part = self._transcribe_file_handle(
                         model_name,
                         f,
@@ -231,35 +234,137 @@ class SpeechTranscriptionProvider(AIProvider):
                         timestamp_granularities=timestamp_granularities,
                         temperature=temperature,
                     )
+                os.remove(chunk_path)
                 text_parts.append(str(part.get("text", "")).strip())
-                for segment in part.get("segments", []):
-                    if not isinstance(segment, dict):
-                        continue
-                    seg_start = to_float(segment.get("start"), 0.0)
-                    seg_end = to_float(segment.get("end"), seg_start)
-                    merged_segments.append(
-                        {
-                            "start": chunk_offset_seconds + seg_start,
-                            "end": chunk_offset_seconds + seg_end,
-                            "text": str(segment.get("text", "")).strip(),
-                        }
-                    )
-                for word in part.get("words", []):
-                    if not isinstance(word, dict):
-                        continue
-                    w_start = to_float(word.get("start"), 0.0)
-                    w_end = to_float(word.get("end"), w_start)
-                    merged_words.append(
-                        {
-                            "start": chunk_offset_seconds + w_start,
-                            "end": chunk_offset_seconds + w_end,
-                            "text": str(word.get("text", "")).strip(),
-                        }
-                    )
-                start = end
+                merged_segments.extend(_shift_items(part.get("segments", []), chunk_offset_seconds))
+                merged_words.extend(_shift_items(part.get("words", []), chunk_offset_seconds))
 
+        if chunk_count == 0:
+            return {"text": "", "segments": []}
         return {
             "text": " ".join(piece for piece in text_parts if piece).strip(),
             "segments": merged_segments,
             "words": merged_words,
         }
+
+    def _iter_wav_chunks(self, audio_path: str, tmp_dir: str) -> Iterator[tuple[str, float]]:
+        """Yield ``(chunk_wav_path, offset_seconds)`` without decoding the whole file.
+
+        Order of preference: stream the source with libsndfile; otherwise let
+        ffmpeg normalize it to 16 kHz mono PCM WAV and stream that; otherwise
+        (no ffmpeg) fall back to a full in-memory decode with librosa.
+        """
+        sf = import_module("soundfile")
+        try:
+            sf.info(audio_path)
+        except Exception:
+            converted = _convert_with_ffmpeg(audio_path, tmp_dir)
+            if converted is None:
+                _LOG.warning(
+                    "speech_transcription: %s is not readable by soundfile and ffmpeg is "
+                    "unavailable; decoding the whole file in memory (high RAM usage)",
+                    os.path.basename(audio_path),
+                )
+                yield from self._iter_wav_chunks_in_memory(audio_path, tmp_dir)
+                return
+            audio_path = converted
+        yield from self._iter_wav_chunks_streaming(audio_path, tmp_dir)
+
+    def _iter_wav_chunks_streaming(
+        self, audio_path: str, tmp_dir: str
+    ) -> Iterator[tuple[str, float]]:
+        sf = import_module("soundfile")
+        max_frames = self._max_samples_per_wav_chunk()
+        with sf.SoundFile(audio_path) as source:
+            sr = int(source.samplerate)
+            start = 0
+            while True:
+                chunk_path = os.path.join(tmp_dir, f"chunk_{start}.wav")
+                written = 0
+                with sf.SoundFile(
+                    chunk_path, mode="w", samplerate=sr, channels=1, subtype="PCM_16"
+                ) as sink:
+                    while written < max_frames:
+                        to_read = min(_READ_BLOCK_FRAMES, max_frames - written)
+                        block = source.read(to_read, dtype="float32", always_2d=True)
+                        if len(block) == 0:
+                            break
+                        sink.write(block.mean(axis=1))
+                        written += len(block)
+                if written == 0:
+                    os.remove(chunk_path)
+                    return
+                yield chunk_path, float(start) / float(sr)
+                start += written
+
+    def _iter_wav_chunks_in_memory(
+        self, audio_path: str, tmp_dir: str
+    ) -> Iterator[tuple[str, float]]:
+        librosa = import_module("librosa")
+        sf = import_module("soundfile")
+        y, sr = librosa.load(audio_path, sr=None, mono=True)
+        total = int(len(y))
+        max_samples = self._max_samples_per_wav_chunk()
+        start = 0
+        while start < total:
+            end = min(start + max_samples, total)
+            chunk_path = os.path.join(tmp_dir, f"chunk_{start}_{end}.wav")
+            sf.write(chunk_path, y[start:end], int(sr), subtype="PCM_16")
+            yield chunk_path, float(start) / float(sr)
+            start = end
+
+
+def _shift_items(items: Any, offset_seconds: float) -> list[dict[str, Any]]:
+    """Shift ``start``/``end`` of chunk-local segments or words by the chunk offset."""
+    shifted: list[dict[str, Any]] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        item_start = to_float(item.get("start"), 0.0)
+        item_end = to_float(item.get("end"), item_start)
+        shifted.append(
+            {
+                "start": offset_seconds + item_start,
+                "end": offset_seconds + item_end,
+                "text": str(item.get("text", "")).strip(),
+            }
+        )
+    return shifted
+
+
+def _convert_with_ffmpeg(audio_path: str, tmp_dir: str) -> str | None:
+    """Transcode to 16 kHz mono PCM_16 WAV on disk; ``None`` if ffmpeg is missing.
+
+    ffmpeg streams internally, so memory stays flat regardless of input length.
+    Raises ``ValueError`` if ffmpeg is present but cannot decode the input.
+    """
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        return None
+    target = os.path.join(tmp_dir, "source_16k_mono.wav")
+    command = [
+        ffmpeg,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        audio_path,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        str(_FFMPEG_SAMPLE_RATE),
+        "-c:a",
+        "pcm_s16le",
+        target,
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True)
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode("utf-8", errors="replace").strip()[-500:]
+        raise ValueError(
+            f"ffmpeg could not decode audio file {os.path.basename(audio_path)!r}: {detail}"
+        ) from exc
+    return target
