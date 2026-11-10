@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from importlib import import_module
 from typing import Any
 
@@ -20,10 +21,22 @@ _WAV_HEADER_MARGIN = 4096
 # Frames read from the source per I/O call while streaming a chunk to disk.
 # Bounds memory independently of file length, sample rate and channel count.
 _READ_BLOCK_FRAMES = 1 << 18
-# Format used when ffmpeg normalizes inputs libsndfile cannot decode (mp3, m4a...).
+# Hard cap on chunk duration, on top of the byte budget: low sample rates (8 kHz)
+# would otherwise yield chunks longer than OpenAI-compatible ASR models accept.
+_MAX_CHUNK_SECONDS = 1200
+# Containers streamed directly with libsndfile: PCM/lossless, decoded frame-exactly.
+# Everything else (MP3, OGG, M4A...) is transcoded by ffmpeg first, because
+# libsndfile may open a lossy header and then fail mid-decode after some chunks
+# were already sent (and billed).
+_STREAMABLE_FORMATS = frozenset({"WAV", "WAVEX", "FLAC", "AIFF"})
+# Format produced when ffmpeg normalizes the other inputs.
 _FFMPEG_SAMPLE_RATE = 16_000
+_DEFAULT_FFMPEG_TIMEOUT_SECONDS = 900.0
 
 _LOG = logging.getLogger(__name__)
+
+# Yields (chunk_wav_path, offset_seconds); a Generator so callers can close() it.
+_ChunkStream = Generator[tuple[str, float], None, None]
 
 # Providers that speak the OpenAI Chat/Audio wire format and can be reached
 # with the official `openai` Python SDK by overriding `base_url`.
@@ -43,12 +56,14 @@ class SpeechTranscriptionProvider(AIProvider):
         api_key: str | None = None,
         base_url: str | None = None,
         temperature: float | None = None,
+        ffmpeg_timeout_seconds: float = _DEFAULT_FFMPEG_TIMEOUT_SECONDS,
     ) -> None:
         self._client = (
             client if client is not None else self._build_client(provider, api_key, base_url)
         )
         self._model = model
         self._temperature = temperature
+        self._ffmpeg_timeout_seconds = ffmpeg_timeout_seconds
 
     @staticmethod
     def _build_client(
@@ -76,11 +91,15 @@ class SpeechTranscriptionProvider(AIProvider):
             return None
 
     @staticmethod
-    def _max_samples_per_wav_chunk() -> int:
+    def _max_samples_per_wav_chunk(sample_rate: int | None = None) -> int:
         """Frames per chunk WAV. Chunks are always mono PCM_16 (2 bytes per frame),
-        so the budget does not depend on the source sample rate or channel count."""
+        so the byte budget ignores the source channel count; with ``sample_rate``
+        the chunk is also capped at ``_MAX_CHUNK_SECONDS``."""
         byte_budget = _SAFE_CHUNK_BYTES - _WAV_HEADER_MARGIN
-        return max(1000, byte_budget // 2)
+        frames = max(1000, byte_budget // 2)
+        if sample_rate:
+            frames = min(frames, max(1, int(sample_rate * _MAX_CHUNK_SECONDS)))
+        return frames
 
     def infer(
         self,
@@ -222,8 +241,13 @@ class SpeechTranscriptionProvider(AIProvider):
         merged_words: list[dict[str, Any]] = []
         chunk_count = 0
 
-        with tempfile.TemporaryDirectory(prefix="ianuacare-whisper-") as tmp_dir:
-            for chunk_path, chunk_offset_seconds in self._iter_wav_chunks(audio_path, tmp_dir):
+        with (
+            tempfile.TemporaryDirectory(prefix="ianuacare-whisper-") as tmp_dir,
+            # Close the generator (and the source SoundFile it holds) before the
+            # temp dir is removed, also when an API call fails mid-way.
+            contextlib.closing(self._iter_wav_chunks(audio_path, tmp_dir)) as chunks,
+        ):
+            for chunk_path, chunk_offset_seconds in chunks:
                 chunk_count += 1
                 with open(chunk_path, "rb") as f:
                     part = self._transcribe_file_handle(
@@ -247,36 +271,35 @@ class SpeechTranscriptionProvider(AIProvider):
             "words": merged_words,
         }
 
-    def _iter_wav_chunks(self, audio_path: str, tmp_dir: str) -> Iterator[tuple[str, float]]:
+    def _iter_wav_chunks(self, audio_path: str, tmp_dir: str) -> _ChunkStream:
         """Yield ``(chunk_wav_path, offset_seconds)`` without decoding the whole file.
 
-        Order of preference: stream the source with libsndfile; otherwise let
-        ffmpeg normalize it to 16 kHz mono PCM WAV and stream that; otherwise
-        (no ffmpeg) fall back to a full in-memory decode with librosa.
+        PCM/lossless containers (``_STREAMABLE_FORMATS``) are streamed with
+        libsndfile; anything else is transcoded by ffmpeg to 16 kHz mono PCM WAV
+        and that is streamed; without ffmpeg, fall back to a full in-memory
+        decode with librosa.
         """
-        sf = import_module("soundfile")
-        try:
-            sf.info(audio_path)
-        except Exception:
-            converted = _convert_with_ffmpeg(audio_path, tmp_dir)
-            if converted is None:
-                _LOG.warning(
-                    "speech_transcription: %s is not readable by soundfile and ffmpeg is "
-                    "unavailable; decoding the whole file in memory (high RAM usage)",
-                    os.path.basename(audio_path),
-                )
-                yield from self._iter_wav_chunks_in_memory(audio_path, tmp_dir)
-                return
-            audio_path = converted
-        yield from self._iter_wav_chunks_streaming(audio_path, tmp_dir)
+        if _soundfile_format(audio_path) in _STREAMABLE_FORMATS:
+            yield from self._iter_wav_chunks_streaming(audio_path, tmp_dir)
+            return
+        converted = _convert_with_ffmpeg(audio_path, tmp_dir, self._ffmpeg_timeout_seconds)
+        if converted is None:
+            _LOG.warning(
+                "speech_transcription: %s is not a PCM/lossless format and ffmpeg is "
+                "unavailable; decoding the whole file in memory (high RAM usage)",
+                os.path.basename(audio_path),
+            )
+            yield from self._iter_wav_chunks_in_memory(audio_path, tmp_dir)
+            return
+        yield from self._iter_wav_chunks_streaming(converted, tmp_dir)
 
     def _iter_wav_chunks_streaming(
         self, audio_path: str, tmp_dir: str
-    ) -> Iterator[tuple[str, float]]:
+    ) -> _ChunkStream:
         sf = import_module("soundfile")
-        max_frames = self._max_samples_per_wav_chunk()
         with sf.SoundFile(audio_path) as source:
             sr = int(source.samplerate)
+            max_frames = self._max_samples_per_wav_chunk(sr)
             start = 0
             while True:
                 chunk_path = os.path.join(tmp_dir, f"chunk_{start}.wav")
@@ -299,12 +322,12 @@ class SpeechTranscriptionProvider(AIProvider):
 
     def _iter_wav_chunks_in_memory(
         self, audio_path: str, tmp_dir: str
-    ) -> Iterator[tuple[str, float]]:
+    ) -> _ChunkStream:
         librosa = import_module("librosa")
         sf = import_module("soundfile")
         y, sr = librosa.load(audio_path, sr=None, mono=True)
         total = int(len(y))
-        max_samples = self._max_samples_per_wav_chunk()
+        max_samples = self._max_samples_per_wav_chunk(int(sr))
         start = 0
         while start < total:
             end = min(start + max_samples, total)
@@ -332,11 +355,21 @@ def _shift_items(items: Any, offset_seconds: float) -> list[dict[str, Any]]:
     return shifted
 
 
-def _convert_with_ffmpeg(audio_path: str, tmp_dir: str) -> str | None:
+def _soundfile_format(audio_path: str) -> str | None:
+    """libsndfile container name (``WAV``, ``FLAC``, ``MP3``...) or ``None``."""
+    sf = import_module("soundfile")
+    try:
+        return str(sf.info(audio_path).format)
+    except Exception:
+        return None
+
+
+def _convert_with_ffmpeg(audio_path: str, tmp_dir: str, timeout_seconds: float) -> str | None:
     """Transcode to 16 kHz mono PCM_16 WAV on disk; ``None`` if ffmpeg is missing.
 
     ffmpeg streams internally, so memory stays flat regardless of input length.
-    Raises ``ValueError`` if ffmpeg is present but cannot decode the input.
+    Raises ``ValueError`` if ffmpeg is present but cannot decode the input or
+    exceeds ``timeout_seconds``; a partial output file is removed.
     """
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
@@ -360,11 +393,21 @@ def _convert_with_ffmpeg(audio_path: str, tmp_dir: str) -> str | None:
         "pcm_s16le",
         target,
     ]
+    name = os.path.basename(audio_path)
     try:
-        subprocess.run(command, check=True, capture_output=True)
-    except subprocess.CalledProcessError as exc:
-        detail = exc.stderr.decode("utf-8", errors="replace").strip()[-500:]
+        subprocess.run(command, check=True, capture_output=True, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        _remove_quietly(target)
         raise ValueError(
-            f"ffmpeg could not decode audio file {os.path.basename(audio_path)!r}: {detail}"
+            f"ffmpeg timed out after {timeout_seconds:g}s converting audio file {name!r}"
         ) from exc
+    except subprocess.CalledProcessError as exc:
+        _remove_quietly(target)
+        detail = (exc.stderr or b"").decode("utf-8", errors="replace").strip()[-500:]
+        raise ValueError(f"ffmpeg could not decode audio file {name!r}: {detail}") from exc
     return target
+
+
+def _remove_quietly(path: str) -> None:
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(path)

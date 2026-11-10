@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import math
 import shutil
+import subprocess
+import tempfile
 import tracemalloc
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
+from ianuacare.ai.providers import speech_transcription as speech_module
 from ianuacare.ai.providers.speech_transcription import SpeechTranscriptionProvider
 
 
@@ -138,29 +141,163 @@ def test_chunk_files_are_removed_after_upload(tmp_path: Path) -> None:
     assert not any(Path(p).exists() for p in seen)
 
 
-@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
-def test_unreadable_by_soundfile_is_normalized_with_ffmpeg(tmp_path: Path) -> None:
-    sr = 44_100
-    path = tmp_path / "in.wav"
-    sf.write(path, np.stack([_sine(sr * 3, sr)] * 2, axis=1), sr, subtype="PCM_16")
-    real_info = sf.info
+_FFMPEG = shutil.which("ffmpeg")
+_needs_ffmpeg = pytest.mark.skipif(_FFMPEG is None, reason="ffmpeg not installed")
+_MODULE = "ianuacare.ai.providers.speech_transcription"
 
-    def _info(target: Any, *args: Any, **kwargs: Any) -> Any:
-        if str(target) == str(path):
-            raise sf.LibsndfileError(0, "simulated unsupported format")
-        return real_info(target, *args, **kwargs)
+
+def _ffmpeg_encode(source: Path, target: Path) -> None:
+    assert _FFMPEG is not None
+    subprocess.run(
+        [_FFMPEG, "-nostdin", "-loglevel", "error", "-y", "-i", str(source), str(target)],
+        check=True,
+    )
+
+
+@_needs_ffmpeg
+@pytest.mark.parametrize("suffix", ["mp3", "ogg", "m4a"])
+def test_lossy_formats_are_always_normalized_with_ffmpeg(tmp_path: Path, suffix: str) -> None:
+    """MP3/OGG open fine in libsndfile, but are still transcoded: no mid-decode failures."""
+    sr = 44_100
+    stereo = np.stack([_sine(sr * 3, sr)] * 2, axis=1)
+    path = tmp_path / f"in.{suffix}"
+    if suffix == "ogg":  # Vorbis written by libsndfile itself, so soundfile can open it
+        sf.write(path, stereo, sr, format="OGG", subtype="VORBIS")
+    else:
+        wav = tmp_path / "src.wav"
+        sf.write(wav, stereo, sr, subtype="PCM_16")
+        _ffmpeg_encode(wav, path)
 
     client = _RecordingClient()
     provider = SpeechTranscriptionProvider(client=client)
+    convert = speech_module._convert_with_ffmpeg
     with (
-        patch("soundfile.info", side_effect=_info),
+        patch(f"{_MODULE}._convert_with_ffmpeg", side_effect=convert) as spy,
         _chunk_frames(16_000),
     ):
         out = _transcribe(provider, path)
 
-    assert [c["samplerate"] for c in client.calls] == [16_000] * 3
+    spy.assert_called_once()
+    assert {c["samplerate"] for c in client.calls} == {16_000}
     assert all(c["channels"] == 1 for c in client.calls)
-    assert [s["start"] for s in out["segments"]] == [0.25, 1.25, 2.25]
+    assert out["segments"][0]["start"] == 0.25
+    assert out["segments"][1]["start"] == 1.25
+
+
+@pytest.mark.parametrize(
+    ("suffix", "fmt"),
+    [("wav", "WAV"), ("wav", "WAVEX"), ("flac", "FLAC"), ("aiff", "AIFF")],
+)
+def test_lossless_formats_are_streamed_without_ffmpeg(
+    tmp_path: Path, suffix: str, fmt: str
+) -> None:
+    sr = 22_050
+    path = tmp_path / f"in.{suffix}"
+    sf.write(path, _sine(sr * 2, sr), sr, format=fmt, subtype="PCM_16")
+    client = _RecordingClient()
+
+    with (
+        patch(f"{_MODULE}._convert_with_ffmpeg", side_effect=AssertionError("no ffmpeg")),
+        _chunk_frames(sr),
+    ):
+        _transcribe(SpeechTranscriptionProvider(client=client), path)
+
+    assert [(c["samplerate"], c["frames"]) for c in client.calls] == [(sr, sr), (sr, sr)]
+
+
+def test_ffmpeg_timeout_raises_and_removes_partial_output(tmp_path: Path) -> None:
+    path = tmp_path / "in.mp3"
+    path.write_bytes(b"pretend mp3")
+    targets: list[Path] = []
+    seen_timeouts: list[float] = []
+
+    def _slow_ffmpeg(command: list[str], **kwargs: Any) -> Any:
+        target = Path(command[-1])
+        target.write_bytes(b"RIFF partial")
+        targets.append(target)
+        seen_timeouts.append(kwargs["timeout"])
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    provider = SpeechTranscriptionProvider(client=_RecordingClient(), ffmpeg_timeout_seconds=42)
+    with (
+        patch(f"{_MODULE}.shutil.which", return_value="/usr/bin/ffmpeg"),
+        patch(f"{_MODULE}.subprocess.run", side_effect=_slow_ffmpeg),
+        pytest.raises(ValueError, match="ffmpeg timed out after 42s"),
+    ):
+        _transcribe(provider, path)
+
+    assert seen_timeouts == [42]
+    assert len(targets) == 1 and not targets[0].exists()
+
+
+def test_ffmpeg_timeout_has_a_generous_default() -> None:
+    provider = SpeechTranscriptionProvider(client=_RecordingClient())
+    assert provider._ffmpeg_timeout_seconds == 900.0
+
+
+def test_chunk_generator_is_closed_before_temp_dir_cleanup(tmp_path: Path) -> None:
+    path = tmp_path / "in.wav"
+    sf.write(path, _sine(16_000 * 3, 16_000), 16_000, subtype="PCM_16")
+    events: list[str] = []
+    real_iter = SpeechTranscriptionProvider._iter_wav_chunks
+    # Keep the generator referenced (as a traceback, debugger or non-refcounting
+    # interpreter would): only an explicit close() can release the source file.
+    alive: list[Any] = []
+
+    def _gen(self: Any, *args: Any) -> Any:
+        try:
+            yield from real_iter(self, *args)
+        finally:
+            events.append("generator closed")
+
+    def _tracked(self: Any, *args: Any) -> Any:
+        alive.append(_gen(self, *args))
+        return alive[-1]
+
+    class _TrackedTempDir(tempfile.TemporaryDirectory):
+        def __exit__(self, *exc: Any) -> None:
+            events.append("temp dir removed")
+            super().__exit__(*exc)
+
+    class _FailingClient(_RecordingClient):
+        def _create(self, **kwargs: Any) -> Any:
+            if self.calls:
+                raise RuntimeError("API down")
+            return super()._create(**kwargs)
+
+    provider = SpeechTranscriptionProvider(client=_FailingClient())
+    with (
+        patch.object(SpeechTranscriptionProvider, "_iter_wav_chunks", _tracked),
+        patch(f"{_MODULE}.tempfile.TemporaryDirectory", _TrackedTempDir),
+        _chunk_frames(16_000),
+        pytest.raises(RuntimeError, match="API down"),
+    ):
+        _transcribe(provider, path)
+
+    assert events == ["generator closed", "temp dir removed"]
+
+
+def test_max_samples_per_chunk_caps_duration_at_low_sample_rates() -> None:
+    byte_frames = SpeechTranscriptionProvider._max_samples_per_wav_chunk()
+    assert byte_frames == (24 * 1024 * 1024 - 4096) // 2
+    assert SpeechTranscriptionProvider._max_samples_per_wav_chunk(16_000) == byte_frames
+    assert SpeechTranscriptionProvider._max_samples_per_wav_chunk(8_000) == 8_000 * 1200
+
+
+def test_8khz_wav_chunks_never_exceed_1200_seconds(tmp_path: Path) -> None:
+    """25 min at 8 kHz fits the byte budget in one ~26 min chunk without the cap."""
+    sr = 8_000
+    path = tmp_path / "phone.wav"
+    minute = _sine(sr * 60, sr)
+    with sf.SoundFile(path, mode="w", samplerate=sr, channels=1, subtype="PCM_16") as sink:
+        for _ in range(25):
+            sink.write(minute)
+    client = _RecordingClient(decode=False)
+
+    out = _transcribe(SpeechTranscriptionProvider(client=client), path)
+
+    assert [c["frames"] for c in client.calls] == [sr * 1200, sr * 300]
+    assert [s["start"] for s in out["segments"]] == [0.25, 1200.25]
 
 
 def test_falls_back_to_in_memory_decode_without_ffmpeg(
@@ -173,7 +310,7 @@ def test_falls_back_to_in_memory_decode_without_ffmpeg(
 
     with (
         patch("soundfile.info", side_effect=RuntimeError("unsupported")),
-        patch("ianuacare.ai.providers.speech_transcription.shutil.which", return_value=None),
+        patch(f"{_MODULE}.shutil.which", return_value=None),
         _chunk_frames(16_000),
         caplog.at_level(logging.WARNING, logger="ianuacare.ai.providers.speech_transcription"),
     ):
@@ -187,7 +324,7 @@ def test_falls_back_to_in_memory_decode_without_ffmpeg(
 def test_ffmpeg_decode_failure_raises_value_error(tmp_path: Path) -> None:
     path = tmp_path / "broken.mp3"
     path.write_bytes(b"not really audio" * 1024)
-    if shutil.which("ffmpeg") is None:
+    if _FFMPEG is None:
         pytest.skip("ffmpeg not installed")
 
     with pytest.raises(ValueError, match="ffmpeg could not decode"):
