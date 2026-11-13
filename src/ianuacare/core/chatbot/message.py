@@ -18,13 +18,16 @@ class Message:
     content: str
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     tool_call_id: str | None = None
+    provider_metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, include_provider_metadata: bool = True) -> dict[str, Any]:
         message: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.tool_calls:
             message["tool_calls"] = self.tool_calls
         if self.tool_call_id is not None:
             message["tool_call_id"] = self.tool_call_id
+        if include_provider_metadata and self.provider_metadata:
+            message["provider_metadata"] = self.provider_metadata
         return message
 
 
@@ -57,7 +60,10 @@ class ConversationMemory:
         return {
             "task": "summarize",
             "previous_summary": self.summary,
-            "history": [m.to_dict() for m in (self.context if history is None else history)],
+            "history": [
+                m.to_dict(include_provider_metadata=False)
+                for m in (self.context if history is None else history)
+            ],
         }
 
     def replace_with_summary(self, summary: str) -> None:
