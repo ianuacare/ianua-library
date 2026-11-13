@@ -135,6 +135,7 @@ class Agent:
                 role="assistant",
                 content=response["content"],
                 tool_calls=response["tool_calls"],
+                provider_metadata=response.get("provider_metadata") or {},
             )
             history.append(assistant)
             if response["finish_reason"] in ("length", "content_filter"):

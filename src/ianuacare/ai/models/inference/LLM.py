@@ -36,7 +36,8 @@ class LLMModel(NLPModel):
     shape is controlled with ``response_format`` (for example
     ``{"type": "json_object"}`` or a JSON-schema spec). Provider-specific knobs
     can be passed through ``extra`` (for example Together's
-    ``chat_template_kwargs``).
+    ``chat_template_kwargs``). ``additional_model_fields`` forwards a native
+    model-options object through providers that support it, such as the gateway.
     """
 
     def __init__(
@@ -58,7 +59,10 @@ class LLMModel(NLPModel):
         reasoning_enabled: bool | None = None,
         response_format: dict[str, Any] | None = None,
         extra: dict[str, Any] | None = None,
+        additional_model_fields: dict[str, Any] | None = None,
     ) -> None:
+        if additional_model_fields is not None and not isinstance(additional_model_fields, dict):
+            raise ValueError("additional_model_fields must be an object")
         super().__init__(provider, model_name)
         self._normalizer = normalizer
         self._params = self._collect_params(
@@ -75,6 +79,7 @@ class LLMModel(NLPModel):
             reasoning_enabled=reasoning_enabled,
             response_format=response_format,
             extra=extra,
+            additional_model_fields=additional_model_fields,
         )
 
     @staticmethod
@@ -119,17 +124,20 @@ class LLMModel(NLPModel):
         Tool-capable providers return these keys from ``ainfer``. ``content`` may
         be null when the assistant only requests tools; reasoning is not an answer.
         """
-        if not self._provider.supports_tools:
+        if not self._provider.supports_tools_for(self._model_name):
             raise NotImplementedError("This provider does not support tool calling")
         params = dict(self._params)
         if tools:
             params.update(tools=tools, tool_choice="auto")
         raw = await self._provider.ainfer(self._model_name, messages, params=params)
-        return {
+        result = {
             "content": raw.get("content") or "",
             "tool_calls": raw.get("tool_calls") or [],
             "finish_reason": raw.get("finish_reason"),
         }
+        if raw.get("provider_metadata"):
+            result["provider_metadata"] = raw["provider_metadata"]
+        return result
 
     async def astream(self, payload: Any) -> AsyncIterator[str]:
         body, model_type = _payload_without_model_type(payload)

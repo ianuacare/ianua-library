@@ -2,6 +2,11 @@
 
 from ianuacare.ai.providers.base import AIProvider
 from ianuacare.ai.providers.callable import CallableProvider
+from ianuacare.ai.providers.inference_gateway import (
+    GatewayHTTPError,
+    GatewayJobPending,
+    InferenceGatewayProvider,
+)
 from ianuacare.ai.providers.rest_hosted import RestHostedModelProvider, RestRequest
 from ianuacare.ai.providers.self_hosted_audio_emotion import SelfHostedAudioEmotionProvider
 from ianuacare.ai.providers.self_hosted_embedding import SelfHostedEmbeddingProvider
@@ -11,6 +16,9 @@ from ianuacare.ai.providers.together import TogetherAIProvider
 __all__ = [
     "AIProvider",
     "CallableProvider",
+    "GatewayHTTPError",
+    "GatewayJobPending",
+    "InferenceGatewayProvider",
     "RestHostedModelProvider",
     "RestRequest",
     "SelfHostedAudioEmotionProvider",

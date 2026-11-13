@@ -8,6 +8,12 @@ for MCP. The base package still has no mandatory dependencies.
 conversation; never share its state across users or patient scopes. The application
 owns persistence of `agent.state.context`, `summary`, and `turn_index`.
 
+For the inference gateway, enable the specific LLM alias with
+`InferenceGatewayProvider(..., tool_models={"clinical-llm"})`. Its adapter translates
+tools to/from Converse. Persist `Message.provider_metadata` with each history message
+to retain native signed reasoning blocks; keep it out of UI responses. See
+[Inference gateway](inference-gateway.md) for capability checks and history constraints.
+
 The agent knows only tool descriptions and schemas. A handler can read an ordinary
 database, query a vector index, or call another service. Database schemas, permission
 checks and semantic ranking belong to the application's handlers. Results are not

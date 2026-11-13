@@ -1,6 +1,6 @@
 # LLM generation parameters
 
-`LLMModel` accepts **construction-time** generation knobs as explicit keyword arguments. They are collected into an internal `params` mapping and forwarded to the registered `AIProvider` on every `run` / `stream` / `arun` / `astream` call. Parameters are **provider-agnostic**: each backend maps the keys it understands and ignores the rest.
+`LLMModel` accepts **construction-time** generation knobs as explicit keyword arguments. They are collected into an internal `params` mapping and forwarded to the registered `AIProvider` on every `run` / `stream` / `arun` / `astream` / `achat` call. Parameter handling depends on the provider: unsupported keys may be ignored or rejected. The gateway rejects unsupported parameters.
 
 Generation parameters are **not** per-request overrides. Set them when you construct `LLMModel` (or optional provider-level defaults on `TogetherAIProvider`).
 
@@ -45,6 +45,7 @@ llm = LLMModel(
 | `reasoning_enabled` | `bool` | `None` | only if set | Toggle reasoning on hybrid models (`True` / `False`) |
 | `response_format` | `dict` | `None` | only if set | Structured output contract for the **provider** (see below) |
 | `extra` | `dict` | `None` | only if set | Provider-specific keys spread into the API call |
+| `additional_model_fields` | `dict` | `None` | only if set | Native model-options object; the gateway forwards it to Bedrock's `additionalModelRequestFields` |
 
 Pass `temperature=None` and/or `top_p=None` to **omit** the built-in defaults and let the remote model's own `generation_config.json` defaults apply.
 
@@ -86,6 +87,32 @@ context = RequestContext(
 ```
 
 ## Provider mapping
+
+### `InferenceGatewayProvider`
+
+Use `additional_model_fields` to configure native options through `LLMModel`, without
+changing the type or meaning of `reasoning_enabled`:
+
+```python
+llm = LLMModel(
+    gateway_provider,
+    "clinical-llm",
+    ModelOutNormalizer(),
+    temperature=None,
+    top_p=None,
+    max_tokens=4096,
+    additional_model_fields={
+        "thinking": {"type": "adaptive"},
+    },
+)
+```
+
+The example targets Sonnet 4.6; select fields supported by the actual destination.
+The dictionary is passed through without interpreting its contents. It applies to
+normal inference and agent calls. The gateway does not automatically translate
+`reasoning_enabled` or `reasoning_effort` into these fields. Keep vendor-specific
+options for other providers in their existing `extra` mechanism. See
+[Inference gateway](inference-gateway.md).
 
 ### `TogetherAIProvider`
 

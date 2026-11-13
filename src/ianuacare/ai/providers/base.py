@@ -13,6 +13,10 @@ class AIProvider(ABC):
 
     supports_tools: bool = False
 
+    def supports_tools_for(self, model_name: str) -> bool:
+        """Model-specific tool capability; legacy providers retain their flag."""
+        return self.supports_tools
+
     @abstractmethod
     def infer(
         self,

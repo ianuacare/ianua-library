@@ -36,6 +36,7 @@ nav:
   - Getting started: getting-started.md
   - Application integration flow: application-integration-flow.md
   - LLM generation parameters: llm-generation-params.md
+  - Inference gateway: inference-gateway.md
   - Audio transcription and diarization: audio-diarization.md
   - Audio emotion (REST-hosted): audio-emotion.md
   - Architecture: architecture.md
