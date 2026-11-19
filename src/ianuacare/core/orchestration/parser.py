@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
+
+from pydantic import BaseModel, ValidationError as ModelValidationError
 
 from ianuacare.ai.text import (
     DEFAULT_MAX_TOKENS,
@@ -268,13 +270,24 @@ class OutputDataParser:
         *,
         model_key: str | None = None,
         schema: Mapping[str, Any] | None = None,
+        output_model: type[BaseModel] | None = None,
+        transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> DataPacket:
-        """Validate (when applicable) and normalize the inference result."""
+        """Normalize the result in-place on the packet.
+
+        For structured LLM output, pass a Pydantic class as output_model. A
+        transform can map provider/legacy fields before the model validates
+        them. Callers using the existing schema argument retain its behavior.
+        """
         result = packet.inference_result
         key = (model_key or "").strip().lower() if isinstance(model_key, str) else ""
 
-        if key == "llm":
-            result = self._parse_llm(result, schema=schema)
+        if schema is not None and output_model is not None:
+            raise ValueError("Specify either schema or output_model")
+        if transform is not None and output_model is None:
+            raise ValueError("transform requires output_model")
+        if key == "llm" or output_model is not None:
+            result = self._parse_llm(result, schema=schema, output_model=output_model, transform=transform)
         elif key == "diarization":
             result = self._parse_diarization(result)
         elif key == "audio_emotion":
@@ -308,8 +321,37 @@ class OutputDataParser:
                 raise ValidationError("audio_emotion per_segment must be a list of mappings")
         return dict(result)
 
-    def _parse_llm(self, result: Any, *, schema: Mapping[str, Any] | None) -> Any:
-        """Branch for ``llm``: validate required fields and type coherence vs schema."""
+    def _parse_llm(
+        self, result: Any, *, schema: Mapping[str, Any] | None,
+        output_model: type[BaseModel] | None = None,
+        transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> Any:
+        if output_model is not None:
+            payload = result
+            if isinstance(result, dict) and "text" in result:
+                envelope_keys = {"model", "content", "key_points", "raw", "message"}
+                fields = output_model.model_fields
+                has_provider_metadata = bool((result.keys() & envelope_keys) - fields.keys())
+                if "text" not in fields or has_provider_metadata:
+                    payload = result["text"]
+            if isinstance(payload, (str, bytes)):
+                try:
+                    payload = json.loads(payload)
+                except (ValueError, UnicodeDecodeError) as exc:
+                    raise ValidationError("llm output must be valid JSON") from exc
+            if not isinstance(payload, dict):
+                raise ValidationError("llm output must be a JSON object")
+            try:
+                if transform is not None:
+                    payload = transform(payload)
+                model = output_model.model_validate(payload, context={"source": "llm"})
+            except ModelValidationError as exc:
+                issues = [
+                    f"{'.'.join(map(str, issue['loc'])) or '$'} ({issue['type']})"
+                    for issue in exc.errors(include_input=False, include_url=False)
+                ]
+                raise ValidationError("Invalid llm output: " + ", ".join(issues)) from None
+            return model.model_dump(mode="json", exclude_unset=True)
         if schema is None:
             return result
         structured = self._extract_structured_llm_output(result)
