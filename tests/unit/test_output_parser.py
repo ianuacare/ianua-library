@@ -146,3 +146,40 @@ def test_text_embedder_rejects_non_mapping_list_item() -> None:
     p = DataPacket(inference_result=[{"id_artefatto_trascrizione": "a"}, "bad"])
     with pytest.raises(ValidationError):
         OutputDataParser().parse(p, model_key="text_embedder")
+
+
+def test_pydantic_output_through_public_parser():
+    from pydantic import BaseModel, ConfigDict, model_validator
+
+    class Range(BaseModel):
+        model_config = ConfigDict(strict=True)
+        bounds: list[int]
+
+        @model_validator(mode="after")
+        def ordered(self):
+            if self.bounds != sorted(self.bounds):
+                raise ValueError("Unordered range")
+            return self
+
+    parser = OutputDataParser()
+    for payload in ('{"bounds":[1,2]}', {"bounds": [1, 2]}, {"text": '{"bounds":[1,2]}'}):
+        result = parser.parse(DataPacket(inference_result=payload), output_model=Range)
+        assert result.processed_data == {"bounds": [1, 2]}
+    for payload, message in [('{"bounds":', "valid JSON"), ({"bounds": ["2"]}, "bounds.0"),
+                             ({"bounds": [2, 1]}, "value_error")]:
+        with pytest.raises(ValidationError, match=message):
+            parser.parse(DataPacket(inference_result=payload), output_model=Range)
+    with pytest.raises(ValueError, match="schema or output_model"):
+        parser.parse(DataPacket(), schema={}, output_model=Range)
+
+
+def test_pydantic_text_field_is_preserved_and_gateway_metadata_is_unwrapped():
+    from pydantic import BaseModel
+
+    class TextResponse(BaseModel):
+        text: str
+
+    parser = OutputDataParser()
+    for raw in ({"text": "hello"}, {"model": "example", "text": '{"text": "hello"}'}):
+        result = parser.parse(DataPacket(inference_result=raw), output_model=TextResponse)
+        assert result.processed_data == {"text": "hello"}
