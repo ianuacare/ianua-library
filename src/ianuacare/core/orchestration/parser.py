@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from typing import Any
 
-from pydantic import BaseModel, ValidationError as ModelValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as ModelValidationError
 
 from ianuacare.ai.text import (
     DEFAULT_MAX_TOKENS,
@@ -287,7 +289,9 @@ class OutputDataParser:
         if transform is not None and output_model is None:
             raise ValueError("transform requires output_model")
         if key == "llm" or output_model is not None:
-            result = self._parse_llm(result, schema=schema, output_model=output_model, transform=transform)
+            result = self._parse_llm(
+                result, schema=schema, output_model=output_model, transform=transform
+            )
         elif key == "diarization":
             result = self._parse_diarization(result)
         elif key == "audio_emotion":
@@ -339,6 +343,9 @@ class OutputDataParser:
                     payload = json.loads(payload)
                 except (ValueError, UnicodeDecodeError) as exc:
                     raise ValidationError("llm output must be valid JSON") from exc
+            elif isinstance(payload, dict):
+                # Keep request-specific transforms and validators from modifying cached output.
+                payload = deepcopy(payload)
             if not isinstance(payload, dict):
                 raise ValidationError("llm output must be a JSON object")
             try:
