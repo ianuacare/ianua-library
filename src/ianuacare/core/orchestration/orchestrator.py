@@ -7,6 +7,8 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from pydantic import BaseModel
+
 from ianuacare.ai.models.inference.base import BaseAIModel
 from ianuacare.core.exceptions.errors import InferenceError, OrchestrationError
 from ianuacare.core.models.context import RequestContext
@@ -66,29 +68,49 @@ class Orchestrator:
         return [float(component) for component in vector]
 
     def execute(self, packet: DataPacket, context: RequestContext) -> DataPacket:
-        """Parse input, select model, run inference, then parse output into ``processed_data``."""
+        """Run inference and parse the output with the request's validation options.
+
+        ``context.metadata`` accepts a JSON schema under ``output_schema`` or a
+        Pydantic class under ``output_model``. With a Pydantic class, an optional
+        ``output_transform`` runs on the decoded object before validation.
+        """
         model_key = self._select_model(context, packet)
         if model_key not in self._models:
             raise OrchestrationError(f"Unknown model key: {model_key}")
-        self._input_parser.parse(packet, model_key=model_key)
-        model = self._models[model_key]
-        payload = packet.parsed_data
         schema = self._extract_output_schema(context)
+        output_model = context.metadata.get("output_model")
+        if output_model is not None and (
+            not isinstance(output_model, type) or not issubclass(output_model, BaseModel)
+        ):
+            raise OrchestrationError("context.metadata['output_model'] must be a Pydantic class")
+        transform = context.metadata.get("output_transform")
+        if transform is not None and not callable(transform):
+            raise OrchestrationError("context.metadata['output_transform'] must be callable")
+        if output_model is not None and schema is not None:
+            raise OrchestrationError("Specify either output_schema or output_model")
+        if transform is not None and output_model is None:
+            raise OrchestrationError("output_transform requires output_model")
+
+        self._input_parser.parse(packet, model_key=model_key)
+        payload = packet.parsed_data
         cache_key = self._build_cache_key(model_key=model_key, payload=payload)
-        if self._cache is not None:
-            cached = self._cache.get(cache_key)
-            if cached is not None:
-                packet.inference_result = cached
-                self._output_parser.parse(packet, model_key=model_key, schema=schema)
-                return packet
-        try:
-            result = model.run(payload)
-        except Exception as exc:
-            raise InferenceError("Model inference failed") from exc
-        if self._cache is not None:
-            self._cache.set(cache_key, result, ttl_seconds=self._cache_ttl_seconds)
+        cached = self._cache.get(cache_key) if self._cache is not None else None
+        result = cached
+        if cached is None:
+            try:
+                result = self._models[model_key].run(payload)
+            except Exception as exc:
+                raise InferenceError("Model inference failed") from exc
         packet.inference_result = result
-        self._output_parser.parse(packet, model_key=model_key, schema=schema)
+        self._output_parser.parse(
+            packet,
+            model_key=model_key,
+            schema=schema,
+            output_model=output_model,
+            transform=transform,
+        )
+        if self._cache is not None and cached is None:
+            self._cache.set(cache_key, result, ttl_seconds=self._cache_ttl_seconds)
         return packet
 
     def _select_model(self, context: RequestContext, packet: DataPacket) -> str:
